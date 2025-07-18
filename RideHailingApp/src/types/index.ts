@@ -83,6 +83,12 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
+export type DriverTabParamList = {
+  DriverHome: undefined;
+  Earnings: undefined;
+  Profile: undefined;
+};
+
 // API Response types
 export interface ApiResponse<T> {
   data?: T;

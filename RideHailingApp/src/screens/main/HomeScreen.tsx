@@ -16,12 +16,15 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useAuth } from '../../context/AuthContext';
+import { useActiveRide } from '../../hooks/useRealTimeRides';
+import { createRide } from '../../services/rideService';
 import { Location as LocationType } from '../../types';
 
 const { width, height } = Dimensions.get('window');
 
 const HomeScreen: React.FC = () => {
   const { user } = useAuth();
+  const { activeRide } = useActiveRide();
   const mapRef = useRef<MapView>(null);
   
   const [currentLocation, setCurrentLocation] = useState<LocationType | null>(null);
@@ -130,13 +133,44 @@ const HomeScreen: React.FC = () => {
     setShowBookingModal(true);
   };
 
-  const confirmBooking = () => {
-    // In a real app, this would call the Supabase API to create a ride request
-    Alert.alert('Success', 'Ride booked successfully! Finding a driver...');
-    setShowBookingModal(false);
-    // Reset selections
-    setDestination(null);
-    setPickupLocation(currentLocation);
+  const confirmBooking = async () => {
+    if (!user?.id || !pickupLocation || !destination) {
+      Alert.alert('Error', 'Missing required information');
+      return;
+    }
+
+    try {
+      const rideData = {
+        rider_id: user.id,
+        pickup_location: pickupLocation,
+        destination_location: destination,
+        ride_type: selectedRideType as 'economy' | 'comfort' | 'premium' | 'xl',
+        payment_method: 'card' as 'cash' | 'card' | 'digital_wallet',
+        fare: estimatedFare * (rideTypes.find(r => r.id === selectedRideType)?.price || 1),
+        distance: getDistanceFromLatLonInKm(
+          pickupLocation.latitude,
+          pickupLocation.longitude,
+          destination.latitude,
+          destination.longitude
+        ),
+        estimated_duration: estimatedTime,
+      };
+
+      const { data, error } = await createRide(rideData);
+      
+      if (error) {
+        Alert.alert('Error', error);
+        return;
+      }
+
+      Alert.alert('Success', 'Ride booked successfully! Finding a driver...');
+      setShowBookingModal(false);
+      // Reset selections
+      setDestination(null);
+      setPickupLocation(currentLocation);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to book ride. Please try again.');
+    }
   };
 
   const resetSelection = () => {
@@ -144,6 +178,36 @@ const HomeScreen: React.FC = () => {
     setPickupLocation(currentLocation);
     setEstimatedFare(0);
     setEstimatedTime(0);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'requested':
+        return '#FF9800';
+      case 'accepted':
+        return '#2196F3';
+      case 'arriving':
+        return '#2196F3';
+      case 'in_progress':
+        return '#4CAF50';
+      default:
+        return '#666666';
+    }
+  };
+
+  const getRideStatusText = (status: string) => {
+    switch (status) {
+      case 'requested':
+        return 'Finding a driver...';
+      case 'accepted':
+        return 'Driver is on the way';
+      case 'arriving':
+        return 'Driver is arriving';
+      case 'in_progress':
+        return 'Trip in progress';
+      default:
+        return 'Ride status';
+    }
   };
 
   return (
@@ -160,6 +224,32 @@ const HomeScreen: React.FC = () => {
           <Ionicons name="menu" size={24} color="#1A1A1A" />
         </TouchableOpacity>
       </View>
+
+      {/* Active Ride Status */}
+      {activeRide && (
+        <View style={styles.activeRideContainer}>
+          <View style={styles.activeRideHeader}>
+            <View style={styles.activeRideStatus}>
+              <View style={[styles.statusDot, { backgroundColor: getStatusColor(activeRide.status) }]} />
+              <Text style={styles.activeRideStatusText}>
+                {getRideStatusText(activeRide.status)}
+              </Text>
+            </View>
+            <Text style={styles.activeRideFare}>${activeRide.fare.toFixed(2)}</Text>
+          </View>
+          
+          {activeRide.driver_id && (
+            <View style={styles.driverInfo}>
+              <Text style={styles.driverName}>
+                {(activeRide as any).driver?.name || 'Your driver'}
+              </Text>
+              <Text style={styles.driverVehicle}>
+                {(activeRide as any).driver?.vehicle_info?.color} {(activeRide as any).driver?.vehicle_info?.make}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -340,6 +430,60 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 8,
+  },
+  activeRideContainer: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  activeRideHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  activeRideStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  activeRideStatusText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  activeRideFare: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  driverInfo: {
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    paddingTop: 12,
+  },
+  driverName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  driverVehicle: {
+    fontSize: 12,
+    color: '#666666',
+    marginTop: 2,
   },
   searchContainer: {
     paddingHorizontal: 20,
