@@ -1,5 +1,15 @@
 import { supabase } from './supabase';
 import { Location, Ride } from '../types';
+import { 
+  updateDriverLocationPostGIS, 
+  findNearbyDriversPostGIS, 
+  getNearbyRidesForDriver 
+} from './postgisService';
+import { 
+  notifyRider, 
+  notifyNearbyDrivers, 
+  createRideNotifications 
+} from './notificationService';
 
 // Accept a ride request
 export const acceptRide = async (rideId: string, driverId: string) => {
@@ -83,34 +93,10 @@ export const cancelRide = async (rideId: string, reason?: string) => {
   }
 };
 
-// Get available rides for driver
+// Get available rides for driver using PostGIS
 export const getAvailableRides = async (driverLocation: Location, radius: number = 10) => {
   try {
-    const { data, error } = await supabase
-      .from('rides')
-      .select(`
-        *,
-        rider:rider_id(id, name, phone)
-      `)
-      .eq('status', 'requested')
-      .is('driver_id', null)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-
-    // Filter by distance (in a real app, use PostGIS for better performance)
-    const nearbyRides = data?.filter(ride => {
-      const pickup = ride.pickup_location as Location;
-      const distance = calculateDistance(
-        driverLocation.latitude,
-        driverLocation.longitude,
-        pickup.latitude,
-        pickup.longitude
-      );
-      return distance <= radius;
-    });
-
-    return { data: nearbyRides || [], error: null };
+    return await getNearbyRidesForDriver(driverLocation, radius);
   } catch (error: any) {
     return { data: [], error: error.message };
   }
@@ -136,21 +122,10 @@ export const updateDriverAvailability = async (driverId: string, isAvailable: bo
   }
 };
 
-// Update driver location
+// Update driver location using PostGIS
 export const updateDriverLocation = async (driverId: string, location: Location) => {
   try {
-    const { data, error } = await supabase
-      .from('drivers')
-      .update({
-        current_location: location,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', driverId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return { data, error: null };
+    return await updateDriverLocationPostGIS(driverId, location);
   } catch (error: any) {
     return { data: null, error: error.message };
   }

@@ -1,5 +1,16 @@
 import { supabase } from './supabase';
 import { Ride, Location, RideStatus } from '../types';
+import { 
+  createRidePostGIS, 
+  calculateRouteInfoPostGIS, 
+  getSurgeMultiplier 
+} from './postgisService';
+import { 
+  notifyNearbyDrivers, 
+  notifyRider, 
+  createRideNotifications 
+} from './notificationService';
+import { calculateFareWithSurge } from './paymentService';
 
 // Create a new ride request
 export const createRide = async (rideData: {

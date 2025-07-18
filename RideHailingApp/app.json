@@ -17,9 +17,20 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yourcompany.rideapp",
+      "buildNumber": "1",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show your current position and help you book rides.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location to show your current position and help you book rides."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location to show your current position and help you book rides.",
+        "NSLocationAlwaysUsageDescription": "This app needs background location access for driver tracking and navigation during rides.",
+        "NSMicrophoneUsageDescription": "This app may use microphone for voice commands during navigation.",
+        "NSCameraUsageDescription": "This app may use camera for profile pictures and ride verification.",
+        "NSPhotoLibraryUsageDescription": "This app may access photo library for profile pictures.",
+        "UIBackgroundModes": [
+          "location",
+          "background-processing",
+          "background-fetch",
+          "background-app-refresh"
+        ]
       }
     },
     "android": {
@@ -28,9 +39,21 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.yourcompany.rideapp",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "CALL_PHONE"
       ],
       "config": {
         "googleMaps": {
@@ -39,15 +62,42 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "config": {
+        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+      }
     },
     "plugins": [
+      "expo-notifications",
+      "expo-device",
+      "expo-constants",
+      "expo-background-fetch",
+      "expo-task-manager",
+      "expo-linking",
+      "expo-web-browser",
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow RideApp to use your location to show nearby drivers and help you book rides."
+          "locationAlwaysAndWhenInUsePermission": "Allow RideApp to use your location to show nearby drivers and help you book rides.",
+          "locationAlwaysPermission": "Allow RideApp to use your location even when the app is not open for driver tracking and navigation.",
+          "locationWhenInUsePermission": "Allow RideApp to use your location while using the app for ride booking and navigation.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you set a profile picture.",
+          "cameraPermission": "The app accesses your camera to let you take profile pictures."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-expo-project-id-here"
+      }
+    }
   }
 }
