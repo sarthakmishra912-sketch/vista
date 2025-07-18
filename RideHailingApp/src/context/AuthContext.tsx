@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase, getCurrentUser } from '../services/supabase';
+import { authService, User, AuthSession } from '../services/auth';
 
 interface AuthContextType {
   user: User | null;
@@ -29,49 +28,88 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const currentUser = await getCurrentUser();
-      setUser(currentUser);
-      setLoading(false);
-    };
-
-    getInitialSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    // Check for existing session on app start
+    loadInitialSession();
   }, []);
 
+  const loadInitialSession = async () => {
+    try {
+      const { session, error } = await authService.getSession();
+      if (session && !error) {
+        setUser(session.user);
+      }
+    } catch (error) {
+      console.error('Error loading initial session:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { data, error };
+    setLoading(true);
+    try {
+      const { session, error } = await authService.signIn({ email, password });
+      if (error) {
+        throw new Error(error);
+      }
+      if (session) {
+        setUser(session.user);
+      }
+      return { user: session?.user, error: null };
+    } catch (error: any) {
+      const errorMessage = error.message || 'Sign in failed';
+      setLoading(false);
+      throw new Error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signUp = async (email: string, password: string, userData: any) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: userData,
-      },
-    });
-    return { data, error };
+    setLoading(true);
+    try {
+      const { user: newUser, error } = await authService.signUp({
+        email,
+        password,
+        name: userData.name,
+        phone: userData.phone,
+        user_type: userData.user_type,
+      });
+
+      if (error) {
+        throw new Error(error);
+      }
+
+      if (newUser) {
+        // Automatically sign in after successful signup
+        const { session, error: signInError } = await authService.signIn({ email, password });
+        if (signInError) {
+          throw new Error(signInError);
+        }
+        if (session) {
+          setUser(session.user);
+        }
+        return { user: session?.user, error: null };
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Sign up failed';
+      setLoading(false);
+      throw new Error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      const { error } = await authService.signOut();
+      if (error) {
+        throw new Error(error);
+      }
+      setUser(null);
+    } catch (error: any) {
+      throw new Error(error.message || 'Sign out failed');
+    }
   };
 
   const value = {
@@ -82,9 +120,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signOut,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

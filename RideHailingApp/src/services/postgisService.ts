@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { DatabaseUtils, db } from './database';
 import { Location } from '../types';
 
 // Find nearby drivers using PostGIS function
@@ -7,14 +7,14 @@ export const findNearbyDriversPostGIS = async (
   radiusKm: number = 15
 ) => {
   try {
-    const { data, error } = await supabase.rpc('find_nearby_drivers', {
-      pickup_lat: pickupLocation.latitude,
-      pickup_lng: pickupLocation.longitude,
-      radius_km: radiusKm,
-    });
+    const query = `SELECT * FROM find_nearby_drivers($1, $2, $3)`;
+    const result = await db.query(query, [
+      pickupLocation.latitude,
+      pickupLocation.longitude,
+      radiusKm,
+    ]);
 
-    if (error) throw error;
-    return { data: data || [], error: null };
+    return { data: result.rows || [], error: null };
   } catch (error: any) {
     return { data: [], error: error.message };
   }
@@ -26,15 +26,15 @@ export const calculateRouteInfoPostGIS = async (
   destinationLocation: Location
 ) => {
   try {
-    const { data, error } = await supabase.rpc('calculate_route_info', {
-      pickup_lat: pickupLocation.latitude,
-      pickup_lng: pickupLocation.longitude,
-      dest_lat: destinationLocation.latitude,
-      dest_lng: destinationLocation.longitude,
-    });
+    const query = `SELECT * FROM calculate_route_info($1, $2, $3, $4)`;
+    const result = await db.query(query, [
+      pickupLocation.latitude,
+      pickupLocation.longitude,
+      destinationLocation.latitude,
+      destinationLocation.longitude,
+    ]);
 
-    if (error) throw error;
-    return { data: data?.[0] || null, error: null };
+    return { data: result.rows?.[0] || null, error: null };
   } catch (error: any) {
     return { data: null, error: error.message };
   }
@@ -49,17 +49,17 @@ export const updateDriverLocationPostGIS = async (
   heading?: number
 ) => {
   try {
-    const { data, error } = await supabase.rpc('update_driver_location_postgis', {
-      driver_uuid: driverId,
-      lat: location.latitude,
-      lng: location.longitude,
+    const query = `SELECT update_driver_location_postgis($1, $2, $3, $4, $5, $6)`;
+    const result = await db.query(query, [
+      driverId,
+      location.latitude,
+      location.longitude,
       accuracy,
       speed,
       heading,
-    });
+    ]);
 
-    if (error) throw error;
-    return { data, error: null };
+    return { data: result.rows[0], error: null };
   } catch (error: any) {
     return { data: null, error: error.message };
   }
@@ -68,13 +68,13 @@ export const updateDriverLocationPostGIS = async (
 // Get surge multiplier for a location
 export const getSurgeMultiplier = async (location: Location) => {
   try {
-    const { data, error } = await supabase.rpc('get_surge_multiplier', {
-      lat: location.latitude,
-      lng: location.longitude,
-    });
+    const query = `SELECT get_surge_multiplier($1, $2)`;
+    const result = await db.query(query, [
+      location.latitude,
+      location.longitude,
+    ]);
 
-    if (error) throw error;
-    return { data: data || 1.0, error: null };
+    return { data: result.rows[0]?.get_surge_multiplier || 1.0, error: null };
   } catch (error: any) {
     return { data: 1.0, error: error.message };
   }
