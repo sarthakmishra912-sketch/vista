@@ -219,7 +219,7 @@ const RideAcceptedCard: React.FC<RideAcceptedCardProps> = ({
             styles.card,
             {
               transform: [{ translateY: slideAnim }],
-              height: isExpanded ? 'auto' : 320,
+              height: isExpanded ? 'auto' : (isRideStarted ? 260 : 320),
             }
           ]}
         >
@@ -305,32 +305,34 @@ const RideAcceptedCard: React.FC<RideAcceptedCardProps> = ({
             )}
           </Animated.View>
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={styles.callButton}
-              onPress={handleCall}
-            >
-              <Ionicons name="call" size={20} color="#FFF" />
-              <Text style={styles.callButtonText}>Call</Text>
-            </TouchableOpacity>
+          {/* Action Buttons - Only show before ride starts */}
+          {!isRideStarted && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={styles.callButton}
+                onPress={handleCall}
+              >
+                <Ionicons name="call" size={20} color="#FFF" />
+                <Text style={styles.callButtonText}>Call</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.messageButton}
-              onPress={handleMessage}
-            >
-              <Ionicons name="chatbubble" size={20} color="#22C55E" />
-              <Text style={styles.messageButtonText}>Message</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.messageButton}
+                onPress={handleMessage}
+              >
+                <Ionicons name="chatbubble" size={20} color="#22C55E" />
+                <Text style={styles.messageButtonText}>Message</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={handleCancel}
-            >
-              <Ionicons name="close" size={20} color="#F44336" />
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={handleCancel}
+              >
+                <Ionicons name="close" size={20} color="#F44336" />
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Expandable Details */}
           {isExpanded && (
