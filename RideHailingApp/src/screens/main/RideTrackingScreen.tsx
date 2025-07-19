@@ -99,7 +99,8 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
   const generateRideOTP = () => {
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     setRideOTP(otp);
-    console.log('🔐 Generated ride OTP:', otp);
+    console.log('🔐 Generated ride OTP for user:', otp);
+    console.log('📱 User will share this OTP with driver who will enter it in driver app');
   };
 
   /**
@@ -110,15 +111,18 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       console.log('✅ Driver accepted the ride');
       setRideStatus('accepted');
       
-      // Show acceptance notification
+      // IMMEDIATELY calculate and show route to pickup in user's app
+      console.log('🗺️ Calculating route to pickup for user to see...');
+      await calculateRouteToPickup();
+      
+      // Show acceptance notification with route visible
       Alert.alert(
         '🚗 Driver Accepted!',
-        `${rideDetails.assignedDriver?.name || 'Your driver'} is on the way to pick you up.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle?.plateNumber}\nETA: ${estimatedArrival} minutes`,
+        `${rideDetails.assignedDriver?.name || 'Your driver'} is on the way to pick you up.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle?.plateNumber}\nETA: ${estimatedArrival} minutes\n\n🗺️ You can now see the route on the map!`,
         [{ text: 'Track Driver' }]
       );
 
-      // Start routing to pickup location
-      await calculateRouteToPickup();
+      // Set status to driver arriving (route now visible to user)
       setRideStatus('driver_arriving');
 
     } catch (error) {
@@ -208,6 +212,8 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
 
     try {
       setIsLoadingRoute(true);
+      console.log('🗺️ Calculating route from driver to pickup for user to see...');
+      
       const route = await googleMapsService.getDirections(
         currentDriverLocation,
         rideDetails.pickupLocation
@@ -216,7 +222,8 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       if (route) {
         setRouteToPickup(route);
         setEstimatedArrival(Math.round(route.duration.value / 60));
-        console.log('🗺️ Route to pickup calculated, ETA:', route.duration.text);
+        console.log('✅ Route to pickup visible to user, ETA:', route.duration.text);
+        console.log('👀 User can now see the blue route line on map showing driver\'s path');
       }
     } catch (error) {
       console.error('Error calculating route to pickup:', error);
@@ -262,14 +269,14 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
     // Show arrival notification
     Alert.alert(
       '🎉 Your Ride Has Arrived!',
-      `${rideDetails.assignedDriver?.name || 'Your driver'} is at your pickup location.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle?.plateNumber}\nOTP: ${rideOTP}`,
+      `${rideDetails.assignedDriver?.name || 'Your driver'} is at your pickup location.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle?.plateNumber}\n\n🔐 Please share your OTP with the driver: ${rideOTP}`,
       [
         {
           text: '📱 Call Driver',
           onPress: () => console.log('Call driver')
         },
         {
-          text: '🚗 Start Ride',
+          text: '🚗 Ready to Start',
           onPress: () => setShowOTPModal(true)
         }
       ]
@@ -281,12 +288,12 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
    */
   const handleOTPVerification = async () => {
     if (driverOTP !== rideOTP) {
-      Alert.alert('❌ Invalid OTP', 'Please check the OTP and try again.');
+      Alert.alert('❌ Invalid OTP', 'The driver entered an incorrect OTP. Please verify the OTP with your driver.');
       return;
     }
 
     try {
-      console.log('✅ OTP verified, starting ride');
+      console.log('✅ Driver entered correct OTP, starting ride');
       setShowOTPModal(false);
       setRideStatus('in_progress');
 
@@ -299,7 +306,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
 
       Alert.alert(
         '🚗 Ride Started!',
-        'Your ride has begun. You can track your progress to the destination.',
+        'Your driver has verified the OTP and your ride has begun. You can now track your progress to the destination.',
         [{ text: 'Track Ride' }]
       );
 
@@ -571,7 +578,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
             style={styles.startRideButton}
             onPress={() => setShowOTPModal(true)}
           >
-            <Text style={styles.startRideButtonText}>🚗 Start Ride (Enter OTP)</Text>
+            <Text style={styles.startRideButtonText}>🔐 Share OTP with Driver</Text>
           </TouchableOpacity>
         )}
       </Animated.View>
@@ -585,14 +592,17 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.otpModal}>
-            <Text style={styles.otpTitle}>🔐 Enter OTP to Start Ride</Text>
+            <Text style={styles.otpTitle}>🔐 Waiting for Driver to Enter OTP</Text>
             <Text style={styles.otpSubtitle}>
-              Please provide this OTP to your driver: {rideOTP}
+              Your OTP: {rideOTP}
+            </Text>
+            <Text style={styles.otpInstructions}>
+              📱 Share this OTP with your driver. The driver will enter it in their app to start the ride.
             </Text>
             
             <TextInput
               style={styles.otpInput}
-              placeholder="Enter OTP from driver"
+              placeholder="Driver will enter: ****"
               value={driverOTP}
               onChangeText={setDriverOTP}
               keyboardType="numeric"
@@ -612,7 +622,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
                 style={styles.otpConfirmButton}
                 onPress={handleOTPVerification}
               >
-                <Text style={styles.otpConfirmText}>Verify & Start</Text>
+                <Text style={styles.otpConfirmText}>Driver Entered OTP</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -828,10 +838,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   otpSubtitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#007AFF',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  otpInstructions: {
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
     marginBottom: 24,
+    lineHeight: 20,
   },
   otpInput: {
     borderWidth: 2,
