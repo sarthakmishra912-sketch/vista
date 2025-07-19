@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import DriverSignupCard, { DriverSignupData } from './DriverSignupCard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { driverService } from '../services/driverService';
 
 interface UserTypeToggleProps {
   currentUserType: 'rider' | 'driver';
@@ -25,6 +28,7 @@ const UserTypeToggle: React.FC<UserTypeToggleProps> = ({
   const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [showDriverSignup, setShowDriverSignup] = useState(false);
 
   const handleToggle = () => {
     if (!user) return;
@@ -36,14 +40,8 @@ const UserTypeToggle: React.FC<UserTypeToggleProps> = ({
     const targetType = currentUserType === 'rider' ? 'driver' : 'rider';
 
     if (targetType === 'driver' && !canSwitchToDriver) {
-      Alert.alert(
-        'Driver Registration Required',
-        'You need to register as a driver to use driver features. Would you like to complete driver registration?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Register as Driver', onPress: () => showDriverRegistration() }
-        ]
-      );
+      // Check if this is the first time switching to driver mode
+      checkFirstTimeDriverToggle();
       return;
     }
 
@@ -81,15 +79,89 @@ const UserTypeToggle: React.FC<UserTypeToggleProps> = ({
     }, 300);
   };
 
+  /**
+   * Check if this is the first time user is trying to switch to driver mode
+   */
+  const checkFirstTimeDriverToggle = async () => {
+    try {
+      const hasSeenDriverPrompt = await AsyncStorage.getItem('hasSeenDriverPrompt');
+      
+      if (!hasSeenDriverPrompt) {
+        // First time - show driver signup card
+        setShowDriverSignup(true);
+        // Mark as seen
+        await AsyncStorage.setItem('hasSeenDriverPrompt', 'true');
+      } else {
+        // Not first time - show basic registration prompt
+        showDriverRegistration();
+      }
+    } catch (error) {
+      console.error('Error checking first time driver toggle:', error);
+      // Fallback to showing signup card
+      setShowDriverSignup(true);
+    }
+  };
+
   const showDriverRegistration = () => {
     Alert.alert(
-      'Driver Registration',
-      'Driver registration includes:\n\n• Vehicle verification\n• License validation\n• Background check\n• Insurance verification\n\nThis process takes 24-48 hours.',
+      'Driver Registration Required',
+      'You need to complete driver registration to use driver features. Would you like to register now?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Start Registration', onPress: () => console.log('Navigate to driver registration') }
+        { text: 'Register as Driver', onPress: () => setShowDriverSignup(true) }
       ]
     );
+  };
+
+  /**
+   * Handle successful driver signup
+   */
+  const handleDriverSignupComplete = async (driverData: DriverSignupData) => {
+    try {
+      console.log('🚗 Processing driver signup:', driverData);
+      
+      if (!user?.id) {
+        throw new Error('User ID not found');
+      }
+
+      // Save driver data to database
+      const registrationResult = await driverService.registerDriver({
+        userId: user.id,
+        name: driverData.name,
+        phone: driverData.phone,
+        address: driverData.address,
+        vehicleNumber: driverData.vehicleNumber,
+        vehicleName: driverData.vehicleName,
+        vehicleColor: driverData.vehicleColor,
+      });
+
+      if (!registrationResult.success) {
+        throw new Error(registrationResult.message || 'Registration failed');
+      }
+      
+      console.log('✅ Driver registration completed successfully');
+      
+      // Switch to driver mode
+      setTimeout(() => {
+        onUserTypeChange('driver');
+      }, 500);
+      
+    } catch (error) {
+      console.error('❌ Error completing driver signup:', error);
+      Alert.alert(
+        'Registration Error',
+        'There was an error completing your driver registration. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  /**
+   * Handle driver signup decline
+   */
+  const handleDriverSignupDecline = () => {
+    console.log('User declined driver signup');
+    // User stays in current mode (rider)
   };
 
   const getToggleIcon = () => {
@@ -183,6 +255,14 @@ const UserTypeToggle: React.FC<UserTypeToggleProps> = ({
           </View>
         </View>
       </Modal>
+
+      {/* Driver Signup Card */}
+      <DriverSignupCard
+        visible={showDriverSignup}
+        onClose={() => setShowDriverSignup(false)}
+        onSignupComplete={handleDriverSignupComplete}
+        onDecline={handleDriverSignupDecline}
+      />
     </>
   );
 };

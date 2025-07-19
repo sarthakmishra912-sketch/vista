@@ -495,6 +495,172 @@ class DriverService {
   }
 
   /**
+   * Register a new driver with complete details
+   */
+  async registerDriver(driverData: {
+    userId: string;
+    name: string;
+    phone: string;
+    address: string;
+    vehicleNumber: string;
+    vehicleName: string;
+    vehicleColor: string;
+  }): Promise<{ success: boolean; driverId?: string; message?: string }> {
+    try {
+      console.log('🚗 Registering new driver:', driverData.name);
+
+      // Start transaction
+      const result = await database.transaction(async (client) => {
+        // 1. Insert/Update driver record
+        const driverQuery = `
+          INSERT INTO drivers (id, name, phone, email, rating, status, total_rides, is_verified)
+          VALUES ($1, $2, $3, $4, 5.0, 'offline', 0, true)
+          ON CONFLICT (id) 
+          DO UPDATE SET 
+            name = EXCLUDED.name,
+            phone = EXCLUDED.phone,
+            updated_at = NOW()
+          RETURNING id
+        `;
+
+        const driverResult = await client.query(driverQuery, [
+          driverData.userId,
+          driverData.name,
+          driverData.phone,
+          null // email - can be added later
+        ]);
+
+        const driverId = driverResult.rows[0].id;
+
+        // 2. Insert/Update vehicle information
+        const vehicleQuery = `
+          INSERT INTO vehicles (driver_id, type, color, plate_number, model, year)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT (driver_id)
+          DO UPDATE SET
+            type = EXCLUDED.type,
+            color = EXCLUDED.color,
+            plate_number = EXCLUDED.plate_number,
+            model = EXCLUDED.model,
+            year = EXCLUDED.year
+        `;
+
+        // Determine vehicle type from model name
+        const vehicleType = this.determineVehicleType(driverData.vehicleName);
+        const currentYear = new Date().getFullYear();
+
+        await client.query(vehicleQuery, [
+          driverId,
+          vehicleType,
+          driverData.vehicleColor,
+          driverData.vehicleNumber,
+          driverData.vehicleName,
+          currentYear // Default to current year
+        ]);
+
+        // 3. Set up ride types based on vehicle type
+        const rideTypes = this.getRideTypesForVehicle(vehicleType);
+        
+        // Clear existing ride types
+        await client.query('DELETE FROM driver_ride_types WHERE driver_id = $1', [driverId]);
+        
+        // Insert new ride types
+        for (const rideType of rideTypes) {
+          await client.query(
+            'INSERT INTO driver_ride_types (driver_id, ride_type) VALUES ($1, $2)',
+            [driverId, rideType]
+          );
+        }
+
+        // 4. Initialize driver location (will be updated when they go online)
+        await client.query(`
+          INSERT INTO driver_locations (driver_id, latitude, longitude, heading, timestamp)
+          VALUES ($1, 0, 0, 0, NOW())
+          ON CONFLICT (driver_id)
+          DO UPDATE SET timestamp = EXCLUDED.timestamp
+        `, [driverId]);
+
+        return driverId;
+      });
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      console.log(`✅ Driver ${driverData.name} registered successfully with ID: ${result.data}`);
+
+      return {
+        success: true,
+        driverId: result.data,
+        message: 'Driver registration completed successfully!'
+      };
+
+    } catch (error) {
+      console.error('❌ Error registering driver:', error);
+      return {
+        success: false,
+        message: 'Failed to register driver. Please try again.'
+      };
+    }
+  }
+
+  /**
+   * Determine vehicle type from model name
+   */
+  private determineVehicleType(vehicleName: string): string {
+    const name = vehicleName.toLowerCase();
+    
+    // Bike detection
+    if (name.includes('splendor') || name.includes('activa') || name.includes('jupiter') || 
+        name.includes('pulsar') || name.includes('royal enfield') || name.includes('bike') ||
+        name.includes('scooter') || name.includes('motorcycle')) {
+      return 'Bike';
+    }
+    
+    // SUV detection
+    if (name.includes('scorpio') || name.includes('safari') || name.includes('creta') || 
+        name.includes('suv') || name.includes('xuv') || name.includes('fortuner') ||
+        name.includes('harrier') || name.includes('thar')) {
+      return 'SUV';
+    }
+    
+    // Premium detection
+    if (name.includes('city') || name.includes('verna') || name.includes('rapid') ||
+        name.includes('ciaz') || name.includes('premium') || name.includes('luxury')) {
+      return 'Premium';
+    }
+    
+    // Sedan detection
+    if (name.includes('dzire') || name.includes('amaze') || name.includes('aura') ||
+        name.includes('sedan') || name.includes('zest')) {
+      return 'Sedan';
+    }
+    
+    // Default to Hatchback for smaller cars
+    return 'Hatchback';
+  }
+
+  /**
+   * Get appropriate ride types for vehicle type
+   */
+  private getRideTypesForVehicle(vehicleType: string): string[] {
+    switch (vehicleType) {
+      case 'Bike':
+        return ['bike'];
+      case 'Hatchback':
+        return ['economy'];
+      case 'Sedan':
+        return ['economy', 'comfort'];
+      case 'Premium':
+        return ['comfort', 'premium'];
+      case 'SUV':
+        return ['comfort', 'premium', 'xl'];
+      default:
+        return ['economy'];
+    }
+  }
+
+  /**
    * Create tables if they don't exist (for development)
    */
   async initializeTables(): Promise<void> {
