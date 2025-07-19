@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { User } from '../types';
 import { getCurrentUser, signIn as authSignIn, signUp as authSignUp, signOut as authSignOut } from '../services/authService';
 import { webSocketService } from '../services/websocketService';
+import { notificationService } from '../services/notificationService';
+import { paymentService } from '../services/paymentService';
 
 interface AuthContextType {
   user: User | null;
@@ -36,8 +38,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const currentUser = await getCurrentUser();
         setUser(currentUser);
         
-        // Connect to WebSocket if user is authenticated
+        // Initialize services if user is authenticated
         if (currentUser) {
+          // Initialize push notifications
+          const pushToken = await notificationService.initialize();
+          if (pushToken) {
+            await notificationService.savePushToken(currentUser.id);
+          }
+
+          // Initialize payment tables
+          await paymentService.initializePaymentTables();
+          
+          // Connect to WebSocket
           await webSocketService.connect();
         }
       } catch (error) {
@@ -49,9 +61,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     getInitialSession();
 
-    // Cleanup WebSocket connection on unmount
+    // Cleanup services on unmount
     return () => {
       webSocketService.disconnect();
+      notificationService.cleanup();
     };
   }, []);
 
@@ -66,7 +79,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       setUser(result.data.user);
       
-      // Connect to WebSocket after successful sign in
+      // Initialize services after successful sign in
+      const pushToken = await notificationService.initialize();
+      if (pushToken) {
+        await notificationService.savePushToken(result.data.user.id);
+      }
+      
       await webSocketService.connect();
       
       return result;
@@ -88,7 +106,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       setUser(result.data.user);
       
-      // Connect to WebSocket after successful sign up
+      // Initialize services after successful sign up
+      const pushToken = await notificationService.initialize();
+      if (pushToken) {
+        await notificationService.savePushToken(result.data.user.id);
+      }
+      
       await webSocketService.connect();
       
       return result;
@@ -103,8 +126,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       
-      // Disconnect WebSocket before signing out
+      // Remove push token and cleanup services before signing out
+      if (user) {
+        await notificationService.removePushToken(user.id);
+      }
+      
       webSocketService.disconnect();
+      notificationService.cleanup();
       
       await authSignOut();
       setUser(null);

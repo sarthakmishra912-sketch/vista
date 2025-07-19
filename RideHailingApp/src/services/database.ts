@@ -61,6 +61,7 @@ export const initializeDatabase = async () => {
       user_type VARCHAR(20) CHECK (user_type IN ('rider', 'driver')) NOT NULL,
       password_hash TEXT NOT NULL,
       is_verified BOOLEAN DEFAULT false,
+      push_token TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
@@ -91,7 +92,8 @@ export const initializeDatabase = async () => {
       distance DECIMAL(10,2) NOT NULL,
       estimated_duration INTEGER NOT NULL,
       ride_type VARCHAR(20) CHECK (ride_type IN ('economy', 'comfort', 'premium', 'xl')) NOT NULL,
-      payment_method VARCHAR(20) CHECK (payment_method IN ('cash', 'card', 'digital_wallet')) NOT NULL,
+      payment_method VARCHAR(20) CHECK (payment_method IN ('cash', 'card', 'digital_wallet', 'razorpay')) NOT NULL,
+      payment_status VARCHAR(20) CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded')) DEFAULT 'pending',
       rating INTEGER CHECK (rating >= 1 AND rating <= 5),
       notes TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

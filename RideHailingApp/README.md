@@ -14,15 +14,17 @@ A modern ride-hailing application built with React Native (Expo) and PostgreSQL,
 - **Ride Booking System** with multiple vehicle types (Economy, Comfort, Premium, XL)
 - **Real-time Driver Tracking** with live location updates
 - **Fare Calculation** based on distance and ride type
-- **Multiple Payment Methods** (Cash, Card, Digital Wallet)
+- **Multiple Payment Methods** (Cash, Card, Digital Wallet, Razorpay)
 - **Ride History** with detailed information and ratings
+- **Automatic Payment Processing** with Razorpay integration
 
 ### 📍 Real-time Features
 - **Live Driver Location Tracking** via WebSocket
 - **Real-time Ride Status Updates**
 - **Driver-Rider Communication** through in-app messaging
-- **Push Notifications** for ride updates
+- **Push Notifications** for ride updates, payment confirmations, and driver notifications
 - **ETA Updates** with live traffic consideration
+- **Instant Notifications** for ride acceptance, arrivals, and completion
 
 ### 🗺️ Maps & Navigation
 - **Interactive Maps** powered by Google Maps

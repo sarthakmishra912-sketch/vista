@@ -1,5 +1,6 @@
 import { query } from './database';
 import { webSocketService } from './websocketService';
+import { notificationService } from './notificationService';
 import { Ride, Location, RideStatus } from '../types';
 
 // Create a new ride request
@@ -210,6 +211,9 @@ export const updateRideStatus = async (rideId: string, status: RideStatus, drive
       driverId,
       estimatedArrival: status === 'accepted' ? Date.now() + (10 * 60 * 1000) : undefined // 10 minutes estimate
     });
+
+    // Send push notification to rider
+    await notificationService.notifyRideStatusUpdate(ride.rider_id, rideId, status);
     
     return { data: ride, error: null };
   } catch (error: any) {
