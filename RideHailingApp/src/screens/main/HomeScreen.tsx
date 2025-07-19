@@ -1,315 +1,290 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   Alert,
-  Dimensions,
   SafeAreaView,
   StatusBar,
-  Modal,
-  ScrollView,
+  Text,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
+import CustomMapView from '../../components/MapView';
+import RideBookingCard from '../../components/RideBookingCard';
+import { googleMapsService, LocationCoordinate, FareEstimate } from '../../services/mapsService';
 import { useAuth } from '../../context/AuthContext';
-import { Location as LocationType } from '../../types';
+import * as Location from 'expo-location';
 
-const { width, height } = Dimensions.get('window');
+interface Driver {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  heading?: number;
+  vehicle?: {
+    type: string;
+    color: string;
+    plateNumber: string;
+  };
+  rating?: number;
+  eta?: number;
+}
 
-const HomeScreen: React.FC = () => {
+const HomeScreen: React.FC = ({ navigation }: any) => {
   const { user } = useAuth();
-  const mapRef = useRef<MapView>(null);
   
-  const [currentLocation, setCurrentLocation] = useState<LocationType | null>(null);
-  const [destination, setDestination] = useState<LocationType | null>(null);
-  const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [pickupAddress, setPickupAddress] = useState('');
-  const [destinationAddress, setDestinationAddress] = useState('');
-  const [selectedRideType, setSelectedRideType] = useState('economy');
-  const [estimatedFare, setEstimatedFare] = useState(0);
-  const [estimatedTime, setEstimatedTime] = useState(0);
+  // State for locations
+  const [currentLocation, setCurrentLocation] = useState<LocationCoordinate | null>(null);
+  const [pickupLocation, setPickupLocation] = useState<LocationCoordinate | null>(null);
+  const [destinationLocation, setDestinationLocation] = useState<LocationCoordinate | null>(null);
+  const [pickupAddress, setPickupAddress] = useState<string>('');
+  const [destinationAddress, setDestinationAddress] = useState<string>('');
 
-  const rideTypes = [
-    { id: 'economy', name: 'Economy', icon: 'car', price: 1.0, time: '2-5 min' },
-    { id: 'comfort', name: 'Comfort', icon: 'car-sport', price: 1.3, time: '3-8 min' },
-    { id: 'premium', name: 'Premium', icon: 'car', price: 1.8, time: '5-12 min' },
-    { id: 'xl', name: 'XL', icon: 'car', price: 1.5, time: '4-10 min' },
+  // State for drivers and ride
+  const [nearbyDrivers, setNearbyDrivers] = useState<Driver[]>([]);
+  const [showBookingCard, setShowBookingCard] = useState(false);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+
+  // Mock drivers data (in production, this would come from your driver service)
+  const mockDrivers: Driver[] = [
+    {
+      id: '1',
+      name: 'Rajesh Kumar',
+      lat: 12.9716 + (Math.random() - 0.5) * 0.01,
+      lng: 77.5946 + (Math.random() - 0.5) * 0.01,
+      heading: Math.random() * 360,
+      vehicle: { type: 'Sedan', color: 'White', plateNumber: 'KA01AB1234' },
+      rating: 4.8,
+      eta: Math.floor(Math.random() * 10) + 2,
+    },
+    {
+      id: '2',
+      name: 'Priya Sharma',
+      lat: 12.9716 + (Math.random() - 0.5) * 0.01,
+      lng: 77.5946 + (Math.random() - 0.5) * 0.01,
+      heading: Math.random() * 360,
+      vehicle: { type: 'Hatchback', color: 'Blue', plateNumber: 'KA02CD5678' },
+      rating: 4.9,
+      eta: Math.floor(Math.random() * 10) + 2,
+    },
+    {
+      id: '3',
+      name: 'Amit Patel',
+      lat: 12.9716 + (Math.random() - 0.5) * 0.01,
+      lng: 77.5946 + (Math.random() - 0.5) * 0.01,
+      heading: Math.random() * 360,
+      vehicle: { type: 'SUV', color: 'Black', plateNumber: 'KA03EF9012' },
+      rating: 4.7,
+      eta: Math.floor(Math.random() * 10) + 2,
+    },
   ];
 
   useEffect(() => {
     getCurrentLocation();
+    setNearbyDrivers(mockDrivers);
   }, []);
 
   const getCurrentLocation = async () => {
     try {
+      setIsLoadingLocation(true);
+      
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required to use this app');
+        Alert.alert(
+          'Permission Required',
+          'Please enable location permissions to use this feature.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Settings', onPress: () => Location.requestForegroundPermissionsAsync() },
+          ]
+        );
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
-      const currentPos: LocationType = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const newLocation = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
       };
+
+      setCurrentLocation(newLocation);
       
-      setCurrentLocation(currentPos);
-      setPickupLocation(currentPos);
-
       // Get address for current location
-      const reverseGeocode = await Location.reverseGeocodeAsync(currentPos);
-      if (reverseGeocode[0]) {
-        const address = `${reverseGeocode[0].street || ''} ${reverseGeocode[0].city || ''}`.trim();
-        setPickupAddress(address);
+      const address = await googleMapsService.reverseGeocode(
+        newLocation.lat, 
+        newLocation.lng
+      );
+      
+      if (address) {
+        setPickupLocation(newLocation);
+        setPickupAddress(address.formattedAddress);
       }
-
-      // Center map on current location
-      if (mapRef.current) {
-        mapRef.current.animateToRegion({
-          ...currentPos,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-      }
+      
     } catch (error) {
-      Alert.alert('Error', 'Failed to get current location');
+      console.error('Error getting location:', error);
+      Alert.alert(
+        'Error',
+        'Unable to get your current location. Please check your location settings.',
+        [
+          { text: 'OK' },
+          { text: 'Retry', onPress: getCurrentLocation },
+        ]
+      );
+    } finally {
+      setIsLoadingLocation(false);
     }
   };
 
-  const handleMapPress = (event: any) => {
-    const coordinate = event.nativeEvent.coordinate;
-    if (!pickupLocation) {
-      setPickupLocation(coordinate);
-    } else if (!destination) {
-      setDestination(coordinate);
-      calculateFareAndTime(pickupLocation, coordinate);
-    }
+  const handleShowBookingCard = () => {
+    setShowBookingCard(true);
   };
 
-  const calculateFareAndTime = (pickup: LocationType, dest: LocationType) => {
-    // Simple distance calculation (in a real app, use routing APIs)
-    const distance = getDistanceFromLatLonInKm(
-      pickup.latitude,
-      pickup.longitude,
-      dest.latitude,
-      dest.longitude
-    );
+  const handleCloseBookingCard = () => {
+    setShowBookingCard(false);
+  };
+
+  const handlePickupSelect = async (location: LocationCoordinate, address: string) => {
+    setPickupLocation(location);
     
-    const baseFare = Math.max(5, distance * 2); // Minimum $5, $2 per km
-    setEstimatedFare(baseFare);
-    setEstimatedTime(Math.max(5, Math.round(distance * 3))); // Minimum 5 min, 3 min per km
-  };
-
-  const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c; // Distance in km
-    return d;
-  };
-
-  const deg2rad = (deg: number) => {
-    return deg * (Math.PI / 180);
-  };
-
-  const handleBookRide = () => {
-    if (!pickupLocation || !destination) {
-      Alert.alert('Error', 'Please select pickup and destination locations');
-      return;
+    // Get formatted address
+    try {
+      const addressData = await googleMapsService.reverseGeocode(location.lat, location.lng);
+      setPickupAddress(addressData?.formattedAddress || address);
+    } catch (error) {
+      setPickupAddress(address);
     }
-    setShowBookingModal(true);
   };
 
-  const confirmBooking = () => {
-    // In a real app, this would call the Supabase API to create a ride request
-    Alert.alert('Success', 'Ride booked successfully! Finding a driver...');
-    setShowBookingModal(false);
-    // Reset selections
-    setDestination(null);
-    setPickupLocation(currentLocation);
+  const handleDestinationSelect = async (location: LocationCoordinate, address: string) => {
+    setDestinationLocation(location);
+    
+    // Get formatted address
+    try {
+      const addressData = await googleMapsService.reverseGeocode(location.lat, location.lng);
+      setDestinationAddress(addressData?.formattedAddress || address);
+    } catch (error) {
+      setDestinationAddress(address);
+    }
   };
 
-  const resetSelection = () => {
-    setDestination(null);
-    setPickupLocation(currentLocation);
-    setEstimatedFare(0);
-    setEstimatedTime(0);
+  const handleRideBooking = (rideType: string, fareEstimate: FareEstimate) => {
+    Alert.alert(
+      'Confirm Booking',
+      `Book ${rideType} for ${Math.round(fareEstimate.total)}?\n\nFrom: ${pickupAddress}\nTo: ${destinationAddress}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Book Ride',
+          onPress: () => {
+            // Close booking card
+            setShowBookingCard(false);
+            
+            // Navigate to ride tracking screen
+            navigation.navigate('RideTracking', {
+              rideType,
+              fareEstimate,
+              pickupLocation,
+              destinationLocation,
+              pickupAddress,
+              destinationAddress,
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDriverPress = (driver: Driver) => {
+    Alert.alert(
+      driver.name,
+      `${driver.vehicle?.type} • ${driver.vehicle?.color}\n${driver.vehicle?.plateNumber}\nRating: ${driver.rating}⭐\nETA: ${driver.eta} minutes`,
+      [
+        { text: 'OK' },
+        { text: 'Select Driver', onPress: () => console.log('Driver selected:', driver.id) },
+      ]
+    );
+  };
+
+  const handleMapPress = (coordinate: any) => {
+    // Option to set pickup/destination by tapping on map
+    if (!pickupLocation) {
+      handlePickupSelect(coordinate, 'Selected location');
+    } else if (!destinationLocation) {
+      handleDestinationSelect(coordinate, 'Selected location');
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Good morning</Text>
-          <Text style={styles.userName}>{user?.user_metadata?.name || 'User'}</Text>
-        </View>
-        <TouchableOpacity style={styles.menuButton}>
-          <Ionicons name="menu" size={24} color="#1A1A1A" />
+      {/* Map View */}
+      <CustomMapView
+        drivers={nearbyDrivers}
+        pickupLocation={pickupLocation || undefined}
+        dropoffLocation={destinationLocation || undefined}
+        currentUserLocation={currentLocation || undefined}
+        userType="rider"
+        showUserLocation={true}
+        followUserLocation={false}
+        showTraffic={true}
+        searchRadius={5000}
+        onDriverPress={handleDriverPress}
+        onLocationPress={handleMapPress}
+      />
+
+      {/* Top Controls */}
+      <View style={styles.topControls}>
+        <TouchableOpacity style={styles.menuButton} onPress={() => navigation.openDrawer()}>
+          <Ionicons name="menu" size={24} color="#333" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Profile')}>
+          <Ionicons name="person-circle" size={32} color="#007AFF" />
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#666" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Where to?"
-            value={destinationAddress}
-            onChangeText={setDestinationAddress}
-          />
+      {/* Search Button */}
+      {!showBookingCard && (
+        <View style={styles.searchButtonContainer}>
+          <TouchableOpacity 
+            style={styles.searchButton} 
+            onPress={handleShowBookingCard}
+            disabled={isLoadingLocation}
+          >
+            <Ionicons name="search" size={20} color="#666" />
+            <Text style={styles.searchButtonText}>
+              {isLoadingLocation ? 'Getting location...' : 'Where to?'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
         </View>
-      </View>
+      )}
 
-      {/* Map */}
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
-          onPress={handleMapPress}
-          showsUserLocation={true}
-          showsMyLocationButton={false}
-          initialRegion={{
-            latitude: 37.78825,
-            longitude: -122.4324,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-        >
-          {pickupLocation && (
-            <Marker
-              coordinate={pickupLocation}
-              title="Pickup Location"
-              pinColor="#00FF00"
-            />
-          )}
-          {destination && (
-            <Marker
-              coordinate={destination}
-              title="Destination"
-              pinColor="#FF0000"
-            />
-          )}
-        </MapView>
-
-        {/* Current Location Button */}
-        <TouchableOpacity
-          style={styles.currentLocationButton}
-          onPress={getCurrentLocation}
-        >
+      {/* Location Button */}
+      <View style={styles.locationButtonContainer}>
+        <TouchableOpacity style={styles.locationButton} onPress={getCurrentLocation}>
           <Ionicons name="locate" size={24} color="#007AFF" />
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Panel */}
-      <View style={styles.bottomPanel}>
-        {destination ? (
-          <View>
-            <View style={styles.rideInfo}>
-              <Text style={styles.rideInfoTitle}>Your Trip</Text>
-              <View style={styles.rideDetails}>
-                <Text style={styles.rideTime}>{estimatedTime} min</Text>
-                <Text style={styles.rideFare}>${estimatedFare.toFixed(2)}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.resetButton} onPress={resetSelection}>
-                <Text style={styles.resetButtonText}>Reset</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.bookButton} onPress={handleBookRide}>
-                <Text style={styles.bookButtonText}>Book Ride</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.quickActions}>
-            <Text style={styles.quickActionsTitle}>Quick Actions</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.actionsList}>
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="home" size={24} color="#007AFF" />
-                <Text style={styles.actionText}>Home</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="briefcase" size={24} color="#007AFF" />
-                <Text style={styles.actionText}>Work</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="location" size={24} color="#007AFF" />
-                <Text style={styles.actionText}>Saved</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        )}
-      </View>
-
-      {/* Booking Modal */}
-      <Modal
-        visible={showBookingModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowBookingModal(false)}>
-              <Ionicons name="close" size={24} color="#1A1A1A" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Choose Your Ride</Text>
-            <View style={{ width: 24 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {rideTypes.map((ride) => (
-              <TouchableOpacity
-                key={ride.id}
-                style={[
-                  styles.rideTypeCard,
-                  selectedRideType === ride.id && styles.rideTypeCardSelected,
-                ]}
-                onPress={() => setSelectedRideType(ride.id)}
-              >
-                <View style={styles.rideTypeLeft}>
-                  <Ionicons name={ride.icon as any} size={24} color="#1A1A1A" />
-                  <View style={styles.rideTypeInfo}>
-                    <Text style={styles.rideTypeName}>{ride.name}</Text>
-                    <Text style={styles.rideTypeTime}>{ride.time}</Text>
-                  </View>
-                </View>
-                <Text style={styles.rideTypePrice}>
-                  ${(estimatedFare * ride.price).toFixed(2)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            <View style={styles.paymentSection}>
-              <Text style={styles.sectionTitle}>Payment Method</Text>
-              <TouchableOpacity style={styles.paymentCard}>
-                <Ionicons name="card" size={24} color="#1A1A1A" />
-                <Text style={styles.paymentText}>**** 1234</Text>
-                <Ionicons name="chevron-forward" size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity style={styles.confirmButton} onPress={confirmBooking}>
-              <Text style={styles.confirmButtonText}>Confirm Booking</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      {/* Ride Booking Card */}
+      <RideBookingCard
+        isVisible={showBookingCard}
+        onClose={handleCloseBookingCard}
+        onPickupSelect={handlePickupSelect}
+        onDestinationSelect={handleDestinationSelect}
+        onRideBooking={handleRideBooking}
+        pickupLocation={pickupLocation || undefined}
+        destinationLocation={destinationLocation || undefined}
+        pickupAddress={pickupAddress}
+        destinationAddress={destinationAddress}
+        currentLocation={currentLocation || undefined}
+        availableDrivers={nearbyDrivers.length}
+      />
     </SafeAreaView>
   );
 };
@@ -317,66 +292,24 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF',
   },
-  header: {
+  topControls: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: 14,
-    color: '#666666',
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
+    zIndex: 100,
   },
   menuButton: {
-    padding: 8,
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#1A1A1A',
-  },
-  mapContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  map: {
-    width: '100%',
-    height: '100%',
-  },
-  currentLocationButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
-    width: 50,
-    height: 50,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -385,197 +318,63 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  bottomPanel: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
+  },
+  searchButtonContainer: {
+    position: 'absolute',
+    top: 120,
+    left: 20,
+    right: 20,
+    zIndex: 100,
+  },
+  searchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     elevation: 5,
   },
-  rideInfo: {
-    marginBottom: 20,
-  },
-  rideInfoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-    marginBottom: 12,
-  },
-  rideDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rideTime: {
+  searchButtonText: {
+    flex: 1,
     fontSize: 16,
-    color: '#666666',
-  },
-  rideFare: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#007AFF',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  resetButton: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  resetButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666666',
-  },
-  bookButton: {
-    flex: 2,
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  bookButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  quickActions: {
-    marginBottom: 10,
-  },
-  quickActionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-    marginBottom: 16,
-  },
-  actionsList: {
-    flexDirection: 'row',
-  },
-  actionCard: {
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  actionText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#666666',
-    fontWeight: '500',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  rideTypeCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    marginVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#F8F9FA',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  rideTypeCardSelected: {
-    backgroundColor: '#F0F8FF',
-    borderColor: '#007AFF',
-  },
-  rideTypeLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  rideTypeInfo: {
+    color: '#666',
     marginLeft: 12,
   },
-  rideTypeName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
+  locationButtonContainer: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    zIndex: 100,
   },
-  rideTypeTime: {
-    fontSize: 14,
-    color: '#666666',
-  },
-  rideTypePrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-  },
-  paymentSection: {
-    marginTop: 24,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 12,
-  },
-  paymentCard: {
-    flexDirection: 'row',
+  locationButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  paymentText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#1A1A1A',
-  },
-  confirmButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 40,
-  },
-  confirmButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });
 
