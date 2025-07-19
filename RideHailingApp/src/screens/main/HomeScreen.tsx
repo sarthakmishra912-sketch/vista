@@ -333,24 +333,20 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
           {
             text: '📱 Track Ride',
             onPress: () => {
-              // TODO: Navigate to RideTracking screen when it exists
-              console.log('Navigate to RideTracking with:', {
-                rideId: createdRide.id,
-                rideType,
-                fareEstimate,
-                assignedDriver,
-                pickupLocation,
-                destinationLocation,
-                pickupAddress,
-                destinationAddress,
+              // Navigate to RideTracking screen
+              console.log('🧭 Navigating to RideTracking with ride details');
+              navigation.navigate('RideTracking', {
+                rideDetails: {
+                  rideId: createdRide.id,
+                  rideType,
+                  pickupLocation,
+                  destinationLocation,
+                  pickupAddress,
+                  destinationAddress,
+                  assignedDriver,
+                  fare: Math.round(fareEstimate.total),
+                }
               });
-              
-              // For now, show tracking placeholder
-              Alert.alert(
-                '🗺️ Ride Tracking',
-                'Ride tracking screen will be implemented next.\n\nYour ride has been booked and drivers have been notified!',
-                [{ text: 'OK' }]
-              );
             },
           },
         ]
