@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase, getCurrentUser } from '../services/supabase';
+import { User } from '../types';
+import { getCurrentUser, signIn as authSignIn, signUp as authSignUp, signOut as authSignOut } from '../services/authService';
+import { webSocketService } from '../services/websocketService';
 
 interface AuthContextType {
   user: User | null;
@@ -31,50 +32,90 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const currentUser = await getCurrentUser();
-      setUser(currentUser);
-      setLoading(false);
+      try {
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+        
+        // Connect to WebSocket if user is authenticated
+        if (currentUser) {
+          await webSocketService.connect();
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     getInitialSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
+    // Cleanup WebSocket connection on unmount
     return () => {
-      subscription.unsubscribe();
+      webSocketService.disconnect();
     };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { data, error };
+    try {
+      setLoading(true);
+      const result = await authSignIn(email, password);
+      
+      if (result.error) {
+        return result;
+      }
+      
+      setUser(result.data.user);
+      
+      // Connect to WebSocket after successful sign in
+      await webSocketService.connect();
+      
+      return result;
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signUp = async (email: string, password: string, userData: any) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: userData,
-      },
-    });
-    return { data, error };
+    try {
+      setLoading(true);
+      const result = await authSignUp(email, password, userData);
+      
+      if (result.error) {
+        return result;
+      }
+      
+      setUser(result.data.user);
+      
+      // Connect to WebSocket after successful sign up
+      await webSocketService.connect();
+      
+      return result;
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      setLoading(true);
+      
+      // Disconnect WebSocket before signing out
+      webSocketService.disconnect();
+      
+      await authSignOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Error during sign out:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const value = {
+  const value: AuthContextType = {
     user,
     loading,
     signIn,
