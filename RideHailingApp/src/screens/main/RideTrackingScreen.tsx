@@ -17,6 +17,7 @@ import { googleMapsService, LocationCoordinate } from '../../services/mapsServic
 import { driverService, Driver } from '../../services/driverService';
 import { useAuth } from '../../context/AuthContext';
 import * as Location from 'expo-location';
+import RideAcceptedCard from '../../components/RideAcceptedCard';
 
 interface RideDetails {
   rideId: string;
@@ -52,6 +53,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
   // Animation and UI
   const [cardAnimation] = useState(new Animated.Value(0));
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [showRideAcceptedCard, setShowRideAcceptedCard] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -115,12 +117,8 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       console.log('🗺️ Calculating route to pickup for user to see...');
       await calculateRouteToPickup();
       
-      // Show acceptance notification with route visible
-      Alert.alert(
-        '🚗 Driver Accepted!',
-        `${rideDetails.assignedDriver?.name || 'Your driver'} is on the way to pick you up.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle?.plateNumber}\nETA: ${estimatedArrival} minutes\n\n🗺️ You can now see the route on the map!`,
-        [{ text: 'Track Driver' }]
-      );
+      // Show the beautiful ride accepted card instead of basic alert
+      setShowRideAcceptedCard(true);
 
       // Set status to driver arriving (route now visible to user)
       setRideStatus('driver_arriving');
@@ -265,6 +263,9 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
+
+    // Hide the ride accepted card since driver has arrived
+    setShowRideAcceptedCard(false);
 
     // Show arrival notification
     Alert.alert(
@@ -628,6 +629,53 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
           </View>
         </View>
       </Modal>
+
+      {/* Ride Accepted Card */}
+      <RideAcceptedCard
+        visible={showRideAcceptedCard}
+        driver={rideDetails.assignedDriver}
+        ride={{
+          id: rideDetails.rideId,
+          rider_id: user?.id || '',
+          driver_id: rideDetails.assignedDriver?.id || '',
+          pickup_location: {
+            latitude: rideDetails.pickupLocation.lat,
+            longitude: rideDetails.pickupLocation.lng,
+            address: rideDetails.pickupAddress
+          },
+          destination_location: {
+            latitude: rideDetails.destinationLocation.lat,
+            longitude: rideDetails.destinationLocation.lng,
+            address: rideDetails.destinationAddress
+          },
+          status: rideStatus,
+          fare: rideDetails.fare,
+          distance: 0, // Will be calculated
+          estimated_duration: 0, // Will be calculated
+          ride_type: rideDetails.rideType as 'economy' | 'comfort' | 'premium' | 'xl',
+          payment_method: 'cash' as const,
+          created_at: new Date().toISOString()
+        }}
+        otp={rideOTP}
+        estimatedArrival={estimatedArrival}
+        onCall={() => {
+          console.log('📞 User initiated call to driver');
+          // Call functionality handled by the card component
+        }}
+        onMessage={() => {
+          console.log('💬 User initiated message to driver');
+          // Message functionality handled by the card component
+        }}
+        onCancel={() => {
+          console.log('❌ User cancelled ride from accepted card');
+          setShowRideAcceptedCard(false);
+          handleCancelRide();
+        }}
+        onClose={() => {
+          console.log('🔻 User closed ride accepted card');
+          setShowRideAcceptedCard(false);
+        }}
+      />
     </SafeAreaView>
   );
 };
