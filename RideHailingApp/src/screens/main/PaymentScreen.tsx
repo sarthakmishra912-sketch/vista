@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#22C55E',
   },
   footer: {
     position: 'absolute',
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#EEE',
   },
   payButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#22C55E',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',

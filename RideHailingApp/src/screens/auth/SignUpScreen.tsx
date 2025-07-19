@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   userTypeButtonActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#22C55E',
   },
   userTypeText: {
     marginLeft: 8,
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   signUpButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#22C55E',
     borderRadius: 12,
     height: 52,
     justifyContent: 'center',

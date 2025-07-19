@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   continueButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#22C55E',
     borderRadius: 12,
     paddingVertical: 16,
     flexDirection: 'row',

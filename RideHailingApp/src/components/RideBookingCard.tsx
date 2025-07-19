@@ -699,7 +699,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#22C55E',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -847,7 +847,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   bookButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#22C55E',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',

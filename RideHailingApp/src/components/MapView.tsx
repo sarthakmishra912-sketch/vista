@@ -364,7 +364,7 @@ const CustomMapView: React.FC<MapViewProps> = ({
         {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor="#007AFF"
+            strokeColor="#22C55E"
             strokeWidth={4}
             lineDashPattern={[0]}
           />

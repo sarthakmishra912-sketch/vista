@@ -622,7 +622,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
                 style={styles.otpConfirmButton}
                 onPress={handleOTPVerification}
               >
-                <Text style={styles.otpConfirmText}>Driver Entered OTP</Text>
+                <Text style={styles.otpConfirmText}>Start Ride with Raahi</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   startRideButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#22C55E',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -881,7 +881,7 @@ const styles = StyleSheet.create({
   },
   otpConfirmButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#22C55E',
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 12,
