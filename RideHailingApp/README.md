@@ -43,12 +43,28 @@ A modern ride-hailing application built with React Native (Expo) and PostgreSQL,
 - **State Management**: React Context API
 - **Navigation**: React Navigation v6
 
+## 🚀 Quick Start
+
+### ⚡ Automated Setup (Recommended)
+```bash
+# Clone the repository
+git clone <repository-url>
+cd RideHailingApp
+
+# Run the automated setup script
+./scripts/quick-start.sh
+```
+
+### 📖 Manual Setup
+For detailed setup instructions, see **[SETUP.md](./SETUP.md)**
+
 ## 📋 Prerequisites
 
-- **Node.js** (v16 or higher)
-- **PostgreSQL** (v12 or higher)
-- **Expo CLI** (latest version)
-- **Google Maps API Key**
+- **Node.js** (v18.0.0 or higher)
+- **PostgreSQL** (v14+ with PostGIS extension)  
+- **Redis** (v7.0 or higher)
+- **Expo CLI** and **EAS CLI**
+- **Mobile development environment** (Xcode/Android Studio)
 
 ## 🚀 Installation
 
