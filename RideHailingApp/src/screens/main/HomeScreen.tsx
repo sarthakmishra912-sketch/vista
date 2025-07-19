@@ -12,23 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomMapView from '../../components/MapView';
 import RideBookingCard from '../../components/RideBookingCard';
 import { googleMapsService, LocationCoordinate, FareEstimate } from '../../services/mapsService';
+import { driverService, Driver } from '../../services/driverService';
 import { useAuth } from '../../context/AuthContext';
 import * as Location from 'expo-location';
-
-interface Driver {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  heading?: number;
-  vehicle?: {
-    type: string;
-    color: string;
-    plateNumber: string;
-  };
-  rating?: number;
-  eta?: number;
-}
 
 const HomeScreen: React.FC = ({ navigation }: any) => {
   const { user } = useAuth();
@@ -44,45 +30,78 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
   const [nearbyDrivers, setNearbyDrivers] = useState<Driver[]>([]);
   const [showBookingCard, setShowBookingCard] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
-
-  // Mock drivers data (in production, this would come from your driver service)
-  const mockDrivers: Driver[] = [
-    {
-      id: '1',
-      name: 'Rajesh Kumar',
-      lat: 12.9716 + (Math.random() - 0.5) * 0.01,
-      lng: 77.5946 + (Math.random() - 0.5) * 0.01,
-      heading: Math.random() * 360,
-      vehicle: { type: 'Sedan', color: 'White', plateNumber: 'KA01AB1234' },
-      rating: 4.8,
-      eta: Math.floor(Math.random() * 10) + 2,
-    },
-    {
-      id: '2',
-      name: 'Priya Sharma',
-      lat: 12.9716 + (Math.random() - 0.5) * 0.01,
-      lng: 77.5946 + (Math.random() - 0.5) * 0.01,
-      heading: Math.random() * 360,
-      vehicle: { type: 'Hatchback', color: 'Blue', plateNumber: 'KA02CD5678' },
-      rating: 4.9,
-      eta: Math.floor(Math.random() * 10) + 2,
-    },
-    {
-      id: '3',
-      name: 'Amit Patel',
-      lat: 12.9716 + (Math.random() - 0.5) * 0.01,
-      lng: 77.5946 + (Math.random() - 0.5) * 0.01,
-      heading: Math.random() * 360,
-      vehicle: { type: 'SUV', color: 'Black', plateNumber: 'KA03EF9012' },
-      rating: 4.7,
-      eta: Math.floor(Math.random() * 10) + 2,
-    },
-  ];
+  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
 
   useEffect(() => {
     getCurrentLocation();
-    setNearbyDrivers(mockDrivers);
+    initializeDriverService();
   }, []);
+
+  // Load nearby drivers when location changes
+  useEffect(() => {
+    if (currentLocation) {
+      loadNearbyDrivers(currentLocation);
+    }
+  }, [currentLocation]);
+
+  // Set up periodic driver refresh every 30 seconds
+  useEffect(() => {
+    if (!currentLocation) return;
+
+    const refreshInterval = setInterval(() => {
+      if (currentLocation && !isLoadingDrivers) {
+        console.log('🔄 Refreshing drivers automatically...');
+        loadNearbyDrivers(currentLocation);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [currentLocation, isLoadingDrivers]);
+
+  /**
+   * Initialize driver service and database tables
+   */
+  const initializeDriverService = async () => {
+    try {
+      await driverService.initializeTables();
+      console.log('✅ Driver service initialized');
+    } catch (error) {
+      console.error('❌ Error initializing driver service:', error);
+    }
+  };
+
+  /**
+   * Load nearby drivers from the real driver service
+   */
+  const loadNearbyDrivers = async (location: LocationCoordinate) => {
+    try {
+      setIsLoadingDrivers(true);
+      console.log('🔍 Loading nearby drivers...');
+
+      const drivers = await driverService.findNearbyDrivers(location, 10000); // 10km radius
+      setNearbyDrivers(drivers);
+      
+      console.log(`✅ Loaded ${drivers.length} nearby drivers`);
+    } catch (error) {
+      console.error('❌ Error loading nearby drivers:', error);
+      Alert.alert(
+        'Driver Loading Error',
+        'Unable to load nearby drivers. Using demo data.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoadingDrivers(false);
+    }
+  };
+
+  /**
+   * Refresh drivers periodically
+   */
+  const refreshDrivers = async () => {
+    if (currentLocation) {
+      await loadNearbyDrivers(currentLocation);
+    }
+  };
 
   const getCurrentLocation = async () => {
     try {
@@ -121,6 +140,11 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
       if (address) {
         setPickupLocation(newLocation);
         setPickupAddress(address.formattedAddress);
+      }
+      
+      // Also refresh drivers when location updates
+      if (newLocation) {
+        await loadNearbyDrivers(newLocation);
       }
       
     } catch (error) {
@@ -198,14 +222,54 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
   };
 
   const handleDriverPress = (driver: Driver) => {
+    const vehicleInfo = driver.vehicle 
+      ? `${driver.vehicle.type} • ${driver.vehicle.color}\n${driver.vehicle.plateNumber}`
+      : 'Vehicle info not available';
+    
+    const additionalInfo = [
+      `Rating: ${driver.rating?.toFixed(1) || 'N/A'}⭐`,
+      `Total Rides: ${driver.totalRides || 0}`,
+      `ETA: ${driver.eta || 'N/A'} minutes`,
+      driver.isVerified ? '✅ Verified Driver' : '⚠️ Unverified',
+      `Status: ${driver.status}`,
+    ].join('\n');
+
     Alert.alert(
-      driver.name,
-      `${driver.vehicle?.type} • ${driver.vehicle?.color}\n${driver.vehicle?.plateNumber}\nRating: ${driver.rating}⭐\nETA: ${driver.eta} minutes`,
+      `${driver.name}${driver.isVerified ? ' ✅' : ''}`,
+      `${vehicleInfo}\n\n${additionalInfo}`,
       [
-        { text: 'OK' },
-        { text: 'Select Driver', onPress: () => console.log('Driver selected:', driver.id) },
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'View Profile', 
+          onPress: () => console.log('View driver profile:', driver.id) 
+        },
+        { 
+          text: 'Select Driver', 
+          style: 'default',
+          onPress: () => handleSelectDriver(driver)
+        },
       ]
     );
+  };
+
+  const handleSelectDriver = async (driver: Driver) => {
+    try {
+      console.log('🚗 Driver selected:', driver.name, driver.id);
+      
+      // You could navigate to a driver details screen or start booking process
+      Alert.alert(
+        'Driver Selected',
+        `You selected ${driver.name}. This would typically start the booking process.`,
+        [{ text: 'OK' }]
+      );
+      
+      // Example: Update driver status to busy (in a real app)
+      // await driverService.updateDriverStatus(driver.id, 'busy');
+      
+    } catch (error) {
+      console.error('Error selecting driver:', error);
+      Alert.alert('Error', 'Unable to select driver. Please try again.');
+    }
   };
 
   const handleMapPress = (coordinate: any) => {
@@ -257,17 +321,40 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
           >
             <Ionicons name="search" size={20} color="#666" />
             <Text style={styles.searchButtonText}>
-              {isLoadingLocation ? 'Getting location...' : 'Where to?'}
+              {isLoadingLocation 
+                ? 'Getting location...' 
+                : isLoadingDrivers 
+                ? 'Loading drivers...' 
+                : 'Where to?'}
             </Text>
             <Ionicons name="chevron-forward" size={20} color="#666" />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Location Button */}
+      {/* Location & Refresh Buttons */}
       <View style={styles.locationButtonContainer}>
-        <TouchableOpacity style={styles.locationButton} onPress={getCurrentLocation}>
-          <Ionicons name="locate" size={24} color="#007AFF" />
+        <TouchableOpacity 
+          style={[styles.locationButton, styles.refreshButton]} 
+          onPress={refreshDrivers}
+          disabled={isLoadingDrivers}
+        >
+          <Ionicons 
+            name={isLoadingDrivers ? "refresh" : "car"} 
+            size={20} 
+            color={isLoadingDrivers ? "#999" : "#007AFF"} 
+          />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.locationButton} 
+          onPress={getCurrentLocation}
+          disabled={isLoadingLocation}
+        >
+          <Ionicons 
+            name="locate" 
+            size={24} 
+            color={isLoadingLocation ? "#999" : "#007AFF"} 
+          />
         </TouchableOpacity>
       </View>
 
@@ -362,6 +449,8 @@ const styles = StyleSheet.create({
     bottom: 100,
     right: 20,
     zIndex: 100,
+    flexDirection: 'column',
+    gap: 12,
   },
   locationButton: {
     width: 56,
@@ -375,6 +464,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+  },
+  refreshButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
 });
 
