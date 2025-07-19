@@ -44,18 +44,22 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
     }
   }, [currentLocation]);
 
-  // Set up periodic driver refresh every 30 seconds
+  // Set up periodic driver refresh every 30 seconds (Step 6: Auto-refresh)
   useEffect(() => {
     if (!currentLocation) return;
 
+    console.log('⏰ Setting up auto-refresh every 30 seconds...');
     const refreshInterval = setInterval(() => {
       if (currentLocation && !isLoadingDrivers) {
-        console.log('🔄 Refreshing drivers automatically...');
+        console.log('🔄 Auto-refresh: Updating driver positions...');
         loadNearbyDrivers(currentLocation);
       }
     }, 30000); // 30 seconds
 
-    return () => clearInterval(refreshInterval);
+    return () => {
+      console.log('🛑 Clearing auto-refresh interval');
+      clearInterval(refreshInterval);
+    };
   }, [currentLocation, isLoadingDrivers]);
 
   /**
@@ -72,22 +76,44 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
 
   /**
    * Load nearby drivers from the real driver service
+   * Following the flow: Get location → Query PostGIS → Fetch details → Calculate ETAs → Display
    */
   const loadNearbyDrivers = async (location: LocationCoordinate) => {
     try {
       setIsLoadingDrivers(true);
-      console.log('🔍 Loading nearby drivers...');
+      console.log('🔍 Step 1: Starting driver search near', location.lat, location.lng);
 
-      const drivers = await driverService.findNearbyDrivers(location, 10000); // 10km radius
-      setNearbyDrivers(drivers);
+      // Step 1: Query PostGIS for nearby drivers within 10km radius
+      console.log('🗄️ Step 2: Querying PostGIS for nearby drivers...');
+      const drivers = await driverService.findNearbyDrivers(location, 10000);
       
-      console.log(`✅ Loaded ${drivers.length} nearby drivers`);
+      if (drivers.length > 0) {
+        console.log(`📊 Step 3: Found ${drivers.length} drivers, fetching detailed info...`);
+        
+        // Step 4: Calculate ETAs are already done in the service
+        // Step 5: Update state to display on map
+        setNearbyDrivers(drivers);
+        
+        console.log('✅ Step 4: Driver data loaded and displayed:', {
+          total: drivers.length,
+          available: drivers.filter(d => d.status === 'available').length,
+          averageETA: Math.round(drivers.reduce((sum, d) => sum + (d.eta || 0), 0) / drivers.length),
+          vehicleTypes: [...new Set(drivers.map(d => d.vehicle?.type).filter(Boolean))]
+        });
+      } else {
+        console.log('⚠️ No drivers found in the area');
+        setNearbyDrivers([]);
+      }
+      
     } catch (error) {
-      console.error('❌ Error loading nearby drivers:', error);
+      console.error('❌ Error in driver loading flow:', error);
       Alert.alert(
         'Driver Loading Error',
-        'Unable to load nearby drivers. Using demo data.',
-        [{ text: 'OK' }]
+        'Unable to load nearby drivers. Please check your connection and try again.',
+        [
+          { text: 'Cancel' },
+          { text: 'Retry', onPress: () => loadNearbyDrivers(location) }
+        ]
       );
     } finally {
       setIsLoadingDrivers(false);
@@ -106,9 +132,11 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
   const getCurrentLocation = async () => {
     try {
       setIsLoadingLocation(true);
+      console.log('📍 Step 1: Getting current location...');
       
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
+        console.log('❌ Location permission denied');
         Alert.alert(
           'Permission Required',
           'Please enable location permissions to use this feature.',
@@ -120,6 +148,7 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
         return;
       }
 
+      console.log('✅ Location permission granted, fetching coordinates...');
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
@@ -129,26 +158,28 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
         lng: location.coords.longitude,
       };
 
+      console.log('📍 Location obtained:', newLocation);
       setCurrentLocation(newLocation);
       
       // Get address for current location
+      console.log('🗺️ Reverse geocoding location...');
       const address = await googleMapsService.reverseGeocode(
         newLocation.lat, 
         newLocation.lng
       );
       
       if (address) {
+        console.log('📍 Address resolved:', address.formattedAddress);
         setPickupLocation(newLocation);
         setPickupAddress(address.formattedAddress);
       }
       
-      // Also refresh drivers when location updates
-      if (newLocation) {
-        await loadNearbyDrivers(newLocation);
-      }
+      // Trigger the driver loading flow
+      console.log('🚗 Initiating driver search flow...');
+      await loadNearbyDrivers(newLocation);
       
     } catch (error) {
-      console.error('Error getting location:', error);
+      console.error('❌ Error in location flow:', error);
       Alert.alert(
         'Error',
         'Unable to get your current location. Please check your location settings.',
@@ -370,7 +401,8 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
         pickupAddress={pickupAddress}
         destinationAddress={destinationAddress}
         currentLocation={currentLocation || undefined}
-        availableDrivers={nearbyDrivers.length}
+        availableDrivers={nearbyDrivers}
+        isLoadingDrivers={isLoadingDrivers}
       />
     </SafeAreaView>
   );

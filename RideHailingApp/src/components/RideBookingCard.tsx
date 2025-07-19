@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AddressSearchInput from './AddressSearchInput';
 import { googleMapsService, LocationCoordinate, FareEstimate } from '../services/mapsService';
+import { driverService, Driver } from '../services/driverService';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -25,6 +26,9 @@ interface RideType {
   priceMultiplier: number;
   eta: number;
   available: boolean;
+  availableDrivers: number;
+  closestDriver?: Driver;
+  averageRating?: number;
 }
 
 interface RideBookingCardProps {
@@ -38,7 +42,8 @@ interface RideBookingCardProps {
   pickupAddress?: string;
   destinationAddress?: string;
   currentLocation?: LocationCoordinate;
-  availableDrivers?: number;
+  availableDrivers?: Driver[];
+  isLoadingDrivers?: boolean;
 }
 
 const RideBookingCard: React.FC<RideBookingCardProps> = ({
@@ -52,7 +57,8 @@ const RideBookingCard: React.FC<RideBookingCardProps> = ({
   pickupAddress = '',
   destinationAddress = '',
   currentLocation,
-  availableDrivers = 0,
+  availableDrivers = [],
+  isLoadingDrivers = false,
 }) => {
   const [cardHeight] = useState(new Animated.Value(0));
   const [dragY] = useState(new Animated.Value(0));
@@ -60,49 +66,7 @@ const RideBookingCard: React.FC<RideBookingCardProps> = ({
   const [selectedRideType, setSelectedRideType] = useState<string>('economy');
   const [loading, setLoading] = useState(false);
   const [searchStep, setSearchStep] = useState<'pickup' | 'destination' | 'booking'>('pickup');
-
-  const rideTypes: RideType[] = [
-    {
-      id: 'economy',
-      name: 'RideGo',
-      icon: 'car',
-      description: 'Affordable everyday rides',
-      capacity: 4,
-      priceMultiplier: 1.0,
-      eta: 3,
-      available: true,
-    },
-    {
-      id: 'comfort',
-      name: 'RideComfort',
-      icon: 'car-sport',
-      description: 'Newer cars with extra legroom',
-      capacity: 4,
-      priceMultiplier: 1.3,
-      eta: 5,
-      available: true,
-    },
-    {
-      id: 'premium',
-      name: 'RidePremium',
-      icon: 'diamond',
-      description: 'High-end cars and top drivers',
-      capacity: 4,
-      priceMultiplier: 1.8,
-      eta: 8,
-      available: availableDrivers > 0,
-    },
-    {
-      id: 'xl',
-      name: 'RideXL',
-      icon: 'bus',
-      description: 'Larger vehicles for groups',
-      capacity: 6,
-      priceMultiplier: 1.5,
-      eta: 6,
-      available: true,
-    },
-  ];
+  const [rideTypes, setRideTypes] = useState<RideType[]>([]);
 
   useEffect(() => {
     if (isVisible) {
@@ -122,6 +86,121 @@ const RideBookingCard: React.FC<RideBookingCardProps> = ({
       setSearchStep('pickup');
     }
   }, [pickupLocation, destinationLocation]);
+
+  // Generate ride types based on available drivers
+  useEffect(() => {
+    generateRideTypesFromDrivers();
+  }, [availableDrivers, currentLocation]);
+
+  const generateRideTypesFromDrivers = () => {
+    console.log('🚗 Generating ride types from available drivers:', availableDrivers.length);
+
+    // Group drivers by vehicle type/ride category
+    const driversByRideType = availableDrivers.reduce((acc, driver) => {
+      const rideTypes = driver.rideType || ['economy'];
+      rideTypes.forEach(rideType => {
+        if (!acc[rideType]) {
+          acc[rideType] = [];
+        }
+        acc[rideType].push(driver);
+      });
+      return acc;
+    }, {} as Record<string, Driver[]>);
+
+    // Define base ride type configurations
+    const baseRideTypes = [
+      {
+        id: 'economy',
+        name: 'RideGo',
+        icon: 'car',
+        description: 'Affordable everyday rides',
+        capacity: 4,
+        priceMultiplier: 1.0,
+        vehicleTypes: ['Sedan', 'Hatchback']
+      },
+      {
+        id: 'comfort',
+        name: 'RideComfort',
+        icon: 'car-sport',
+        description: 'Newer cars with extra legroom',
+        capacity: 4,
+        priceMultiplier: 1.3,
+        vehicleTypes: ['Sedan', 'Premium']
+      },
+      {
+        id: 'premium',
+        name: 'RidePremium',
+        icon: 'diamond',
+        description: 'High-end cars and top drivers',
+        capacity: 4,
+        priceMultiplier: 1.8,
+        vehicleTypes: ['Premium', 'SUV']
+      },
+      {
+        id: 'xl',
+        name: 'RideXL',
+        icon: 'bus',
+        description: 'Larger vehicles for groups',
+        capacity: 6,
+        priceMultiplier: 1.5,
+        vehicleTypes: ['SUV']
+      },
+    ];
+
+    // Generate ride types with real driver data
+    const generatedRideTypes: RideType[] = baseRideTypes.map(baseType => {
+      const driversForType = driversByRideType[baseType.id] || [];
+      
+      // Also include drivers whose vehicle type matches
+      const vehicleMatchDrivers = availableDrivers.filter(driver => 
+        driver.vehicle && baseType.vehicleTypes.includes(driver.vehicle.type)
+      );
+
+      const allDriversForType = [...driversForType, ...vehicleMatchDrivers]
+        .filter((driver, index, self) => self.findIndex(d => d.id === driver.id) === index); // Remove duplicates
+
+      // Find closest driver
+      const closestDriver = allDriversForType.reduce((closest, driver) => {
+        if (!closest) return driver;
+        return (driver.eta || 999) < (closest.eta || 999) ? driver : closest;
+      }, null as Driver | null);
+
+      // Calculate average rating
+      const ratingsSum = allDriversForType.reduce((sum, driver) => sum + (driver.rating || 4.0), 0);
+      const averageRating = allDriversForType.length > 0 ? ratingsSum / allDriversForType.length : 4.0;
+
+      return {
+        ...baseType,
+        eta: closestDriver?.eta || 0,
+        available: allDriversForType.length > 0,
+        availableDrivers: allDriversForType.length,
+        closestDriver: closestDriver || undefined,
+        averageRating,
+      };
+    });
+
+    // Sort by availability and ETA
+    generatedRideTypes.sort((a, b) => {
+      if (a.available && !b.available) return -1;
+      if (!a.available && b.available) return 1;
+      return a.eta - b.eta;
+    });
+
+    console.log('✅ Generated ride types:', generatedRideTypes.map(rt => ({
+      id: rt.id,
+      available: rt.available,
+      eta: rt.eta,
+      drivers: rt.availableDrivers
+    })));
+
+    setRideTypes(generatedRideTypes);
+
+    // Auto-select first available ride type
+    const firstAvailable = generatedRideTypes.find(rt => rt.available);
+    if (firstAvailable && selectedRideType !== firstAvailable.id) {
+      setSelectedRideType(firstAvailable.id);
+    }
+  };
 
   const showCard = () => {
     Animated.spring(cardHeight, {
@@ -267,60 +346,118 @@ const RideBookingCard: React.FC<RideBookingCardProps> = ({
 
   const renderFareEstimates = () => (
     <ScrollView style={styles.fareContainer} showsVerticalScrollIndicator={false}>
-      <Text style={styles.sectionTitle}>Choose a ride</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Choose a ride</Text>
+        {isLoadingDrivers && (
+          <View style={styles.loadingContainer}>
+            <Ionicons name="refresh" size={16} color="#007AFF" />
+            <Text style={styles.loadingText}>Updating...</Text>
+          </View>
+        )}
+      </View>
       
-      {rideTypes.map((rideType) => {
-        const fareEstimate = fareEstimates[rideType.id];
-        const isSelected = selectedRideType === rideType.id;
-        
-        return (
-          <TouchableOpacity
-            key={rideType.id}
-            style={[
-              styles.rideTypeCard,
-              isSelected && styles.rideTypeCardSelected,
-              !rideType.available && styles.rideTypeCardDisabled,
-            ]}
-            onPress={() => rideType.available && handleRideTypeSelect(rideType.id)}
-            disabled={!rideType.available}
-          >
-            <View style={styles.rideTypeIcon}>
-              <Ionicons 
-                name={rideType.icon as any} 
-                size={28} 
-                color={isSelected ? '#007AFF' : '#666'} 
-              />
-            </View>
-            
-            <View style={styles.rideTypeInfo}>
-              <Text style={[styles.rideTypeName, isSelected && styles.selectedText]}>
-                {rideType.name}
-              </Text>
-              <Text style={styles.rideTypeDescription}>
-                {rideType.description}
-              </Text>
-              <Text style={styles.rideTypeCapacity}>
-                {rideType.capacity} seats • {formatETA(rideType.eta)} away
-              </Text>
-            </View>
-            
-            <View style={styles.rideTypePrice}>
-              {loading ? (
-                <Text style={styles.priceLoading}>Calculating...</Text>
-              ) : fareEstimate ? (
-                <Text style={[styles.price, isSelected && styles.selectedText]}>
-                  {formatPrice(fareEstimate.total)}
+      {rideTypes.length === 0 && !isLoadingDrivers ? (
+        <View style={styles.noDriversContainer}>
+          <Ionicons name="car" size={48} color="#DDD" />
+          <Text style={styles.noDriversText}>No drivers available</Text>
+          <Text style={styles.noDriversSubtext}>Please try again in a few minutes</Text>
+        </View>
+      ) : (
+        rideTypes.map((rideType) => {
+          const fareEstimate = fareEstimates[rideType.id];
+          const isSelected = selectedRideType === rideType.id;
+          
+          return (
+            <TouchableOpacity
+              key={rideType.id}
+              style={[
+                styles.rideTypeCard,
+                isSelected && styles.rideTypeCardSelected,
+                !rideType.available && styles.rideTypeCardDisabled,
+              ]}
+              onPress={() => rideType.available && handleRideTypeSelect(rideType.id)}
+              disabled={!rideType.available}
+            >
+              <View style={styles.rideTypeIcon}>
+                <Ionicons 
+                  name={rideType.icon as any} 
+                  size={28} 
+                  color={isSelected ? '#007AFF' : '#666'} 
+                />
+                {rideType.available && rideType.availableDrivers > 0 && (
+                  <View style={styles.driverCountBadge}>
+                    <Text style={styles.driverCountText}>{rideType.availableDrivers}</Text>
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.rideTypeInfo}>
+                <View style={styles.rideTypeHeader}>
+                  <Text style={[styles.rideTypeName, isSelected && styles.selectedText]}>
+                    {rideType.name}
+                  </Text>
+                  {rideType.averageRating && rideType.averageRating > 0 && (
+                    <View style={styles.ratingContainer}>
+                      <Ionicons name="star" size={12} color="#FFD700" />
+                      <Text style={styles.ratingText}>{rideType.averageRating.toFixed(1)}</Text>
+                    </View>
+                  )}
+                </View>
+                
+                <Text style={styles.rideTypeDescription}>
+                  {rideType.description}
                 </Text>
-              ) : (
-                <Text style={styles.priceUnavailable}>N/A</Text>
-              )}
-              {!rideType.available && (
-                <Text style={styles.unavailableText}>Unavailable</Text>
-              )}
-            </View>
-          </TouchableOpacity>
-        );
-      })}
+                
+                <View style={styles.rideTypeDetails}>
+                  <Text style={styles.rideTypeCapacity}>
+                    {rideType.capacity} seats
+                  </Text>
+                  {rideType.available && rideType.eta > 0 && (
+                    <>
+                      <Text style={styles.detailSeparator}>•</Text>
+                      <Text style={styles.etaText}>{formatETA(rideType.eta)} away</Text>
+                    </>
+                  )}
+                  {rideType.closestDriver && rideType.closestDriver.vehicle && (
+                    <>
+                      <Text style={styles.detailSeparator}>•</Text>
+                      <Text style={styles.vehicleInfo}>
+                        {rideType.closestDriver.vehicle.color} {rideType.closestDriver.vehicle.type}
+                      </Text>
+                    </>
+                  )}
+                </View>
+                
+                {rideType.closestDriver && (
+                  <Text style={styles.driverInfo}>
+                    Closest: {rideType.closestDriver.name}
+                    {rideType.closestDriver.isVerified && ' ✅'}
+                  </Text>
+                )}
+              </View>
+              
+              <View style={styles.rideTypePrice}>
+                {loading ? (
+                  <Text style={styles.priceLoading}>Calculating...</Text>
+                ) : fareEstimate ? (
+                  <Text style={[styles.price, isSelected && styles.selectedText]}>
+                    {formatPrice(fareEstimate.total)}
+                  </Text>
+                ) : (
+                  <Text style={styles.priceUnavailable}>N/A</Text>
+                )}
+                {!rideType.available ? (
+                  <Text style={styles.unavailableText}>No drivers</Text>
+                ) : rideType.availableDrivers > 0 && (
+                  <Text style={styles.availableText}>
+                    {rideType.availableDrivers} available
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })
+      )}
       
       {searchStep === 'booking' && fareEstimates[selectedRideType] && (
         <View style={styles.bookingActions}>
@@ -496,11 +633,40 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 16,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#007AFF',
+  },
+  noDriversContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noDriversText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 16,
+  },
+  noDriversSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 4,
   },
   rideTypeCard: {
     flexDirection: 'row',
@@ -527,9 +693,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    position: 'relative',
+  },
+  driverCountBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  driverCountText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '600',
   },
   rideTypeInfo: {
     flex: 1,
+  },
+  rideTypeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
   rideTypeName: {
     fontSize: 16,
@@ -542,9 +742,33 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 4,
   },
+  rideTypeDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
   rideTypeCapacity: {
     fontSize: 12,
     color: '#999',
+  },
+  detailSeparator: {
+    fontSize: 12,
+    color: '#DDD',
+    marginHorizontal: 6,
+  },
+  etaText: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  vehicleInfo: {
+    fontSize: 12,
+    color: '#666',
+  },
+  driverInfo: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 2,
   },
   rideTypePrice: {
     alignItems: 'flex-end',
@@ -565,6 +789,11 @@ const styles = StyleSheet.create({
   unavailableText: {
     fontSize: 12,
     color: '#F44336',
+    marginTop: 2,
+  },
+  availableText: {
+    fontSize: 12,
+    color: '#4CAF50',
     marginTop: 2,
   },
   selectedText: {
