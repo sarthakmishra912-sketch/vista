@@ -29,6 +29,7 @@ interface RideType {
   availableDrivers: number;
   closestDriver?: Driver;
   averageRating?: number;
+  isFastest?: boolean;
 }
 
 interface RideBookingCardProps {
@@ -110,6 +111,15 @@ const RideBookingCard: React.FC<RideBookingCardProps> = ({
     // Define base ride type configurations
     const baseRideTypes = [
       {
+        id: 'bike',
+        name: 'RideBike',
+        icon: 'bicycle',
+        description: 'Quick and affordable bike rides',
+        capacity: 1,
+        priceMultiplier: 0.6,
+        vehicleTypes: ['Bike']
+      },
+      {
         id: 'economy',
         name: 'RideGo',
         icon: 'car',
@@ -186,11 +196,21 @@ const RideBookingCard: React.FC<RideBookingCardProps> = ({
       return a.eta - b.eta;
     });
 
+    // Mark the fastest available ride type
+    const availableTypes = generatedRideTypes.filter(rt => rt.available);
+    if (availableTypes.length > 0) {
+      const fastestETA = Math.min(...availableTypes.map(rt => rt.eta));
+      generatedRideTypes.forEach(rideType => {
+        (rideType as any).isFastest = rideType.available && rideType.eta === fastestETA;
+      });
+    }
+
     console.log('✅ Generated ride types:', generatedRideTypes.map(rt => ({
       id: rt.id,
       available: rt.available,
       eta: rt.eta,
-      drivers: rt.availableDrivers
+      drivers: rt.availableDrivers,
+      isFastest: (rt as any).isFastest
     })));
 
     setRideTypes(generatedRideTypes);
@@ -393,9 +413,16 @@ const RideBookingCard: React.FC<RideBookingCardProps> = ({
               
               <View style={styles.rideTypeInfo}>
                 <View style={styles.rideTypeHeader}>
-                  <Text style={[styles.rideTypeName, isSelected && styles.selectedText]}>
-                    {rideType.name}
-                  </Text>
+                  <View style={styles.nameAndTag}>
+                    <Text style={[styles.rideTypeName, isSelected && styles.selectedText]}>
+                      {rideType.name}
+                    </Text>
+                    {rideType.isFastest && (
+                      <View style={styles.fastestTag}>
+                        <Text style={styles.fastestTagText}>FASTEST</Text>
+                      </View>
+                    )}
+                  </View>
                   {rideType.averageRating && rideType.averageRating > 0 && (
                     <View style={styles.ratingContainer}>
                       <Ionicons name="star" size={12} color="#FFD700" />
@@ -720,6 +747,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 2,
+  },
+  nameAndTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  fastestTag: {
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  fastestTagText: {
+    color: '#FFF',
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   ratingContainer: {
     flexDirection: 'row',

@@ -86,7 +86,7 @@ class DriverService {
               driverLocation.longitude
             );
             
-            const eta = this.calculateETA(distance);
+            const eta = this.calculateETA(distance, driverDetails.vehicle?.type);
             
             // Filter by ride type if specified
             if (rideType && driverDetails.rideType && 
@@ -362,13 +362,24 @@ class DriverService {
   }
 
   /**
-   * Calculate ETA based on distance
+   * Calculate ETA based on distance and vehicle type
    */
-  private calculateETA(distanceKm: number): number {
+  private calculateETA(distanceKm: number, vehicleType: string = 'Sedan'): number {
+    // Different speeds for different vehicle types
+    let speedKmh = this.ETA_SPEED_KMH;
+    let trafficFactor = 1.3;
+    
+    if (vehicleType === 'Bike') {
+      speedKmh = 25; // Bikes are slightly slower but can navigate better
+      trafficFactor = 1.1; // Less affected by traffic
+    } else if (vehicleType === 'SUV') {
+      speedKmh = 28; // SUVs slightly slower in city
+      trafficFactor = 1.4; // More affected by traffic
+    }
+    
     // ETA in minutes, accounting for traffic and city driving
-    const baseTime = (distanceKm / this.ETA_SPEED_KMH) * 60;
-    const trafficFactor = 1.3; // 30% extra for traffic
-    const minETA = 2; // Minimum 2 minutes
+    const baseTime = (distanceKm / speedKmh) * 60;
+    const minETA = vehicleType === 'Bike' ? 1 : 2; // Bikes can be faster for short distances
     
     return Math.max(minETA, Math.round(baseTime * trafficFactor));
   }
@@ -403,10 +414,11 @@ class DriverService {
     ];
 
     const vehicleTypes = [
-      { type: 'Sedan', models: ['Swift Dzire', 'Honda Amaze', 'Hyundai Aura'] },
-      { type: 'Hatchback', models: ['Maruti Swift', 'Hyundai i20', 'Tata Altroz'] },
-      { type: 'SUV', models: ['Mahindra Scorpio', 'Tata Safari', 'Hyundai Creta'] },
-      { type: 'Premium', models: ['Honda City', 'Hyundai Verna', 'Skoda Rapid'] },
+      { type: 'Sedan', models: ['Swift Dzire', 'Honda Amaze', 'Hyundai Aura'], rideTypes: ['economy', 'comfort'] },
+      { type: 'Hatchback', models: ['Maruti Swift', 'Hyundai i20', 'Tata Altroz'], rideTypes: ['economy'] },
+      { type: 'SUV', models: ['Mahindra Scorpio', 'Tata Safari', 'Hyundai Creta'], rideTypes: ['comfort', 'premium'] },
+      { type: 'Premium', models: ['Honda City', 'Hyundai Verna', 'Skoda Rapid'], rideTypes: ['comfort', 'premium'] },
+      { type: 'Bike', models: ['Hero Splendor', 'Honda Activa', 'TVS Jupiter', 'Bajaj Pulsar', 'Royal Enfield'], rideTypes: ['bike'] },
     ];
 
     const colors = ['White', 'Silver', 'Black', 'Blue', 'Red', 'Grey'];
@@ -429,7 +441,7 @@ class DriverService {
       }`;
 
       const distanceFromUser = this.calculateDistance(center.lat, center.lng, lat, lng);
-      const eta = this.calculateETA(distanceFromUser);
+      const eta = this.calculateETA(distanceFromUser, vehicle.type);
 
       return {
         id: `mock_driver_${index + 1}`,
@@ -449,7 +461,7 @@ class DriverService {
         status: 'available' as const,
         totalRides: Math.floor(Math.random() * 1000) + 100,
         isVerified: Math.random() > 0.2, // 80% verified
-        rideType: ['economy', 'comfort'],
+        rideType: vehicle.rideTypes,
       };
     });
   }
