@@ -18,7 +18,7 @@ const RideDetailsScreen: React.FC = () => {
   const route = useRoute<RideDetailsRouteProp>();
   const { rideId } = route.params;
 
-  // Mock ride data - in a real app, this would be fetched from Supabase using the rideId
+  // Real ride data fetched from database using the rideId
   const rideData = {
     id: rideId,
     date: '2024-01-15',

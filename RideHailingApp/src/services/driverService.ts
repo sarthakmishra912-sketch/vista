@@ -67,8 +67,8 @@ class DriverService {
       );
 
       if (nearbyDriverLocations.length === 0) {
-        console.log('⚠️ No nearby drivers found, generating mock data for demo');
-        return this.generateMockDrivers(location, 5);
+        console.log('⚠️ No nearby drivers found in database');
+        return [];
       }
 
       // Get full driver details for each nearby driver
@@ -107,10 +107,9 @@ class DriverService {
         }
       }
 
-      // If we don't have enough real drivers, supplement with mock data
+      // Log driver availability without supplementing with mock data
       if (drivers.length < 3) {
-        const mockDrivers = this.generateMockDrivers(location, 5 - drivers.length);
-        drivers.push(...mockDrivers);
+        console.log(`⚠️ Only ${drivers.length} drivers available (fewer than expected)`);
       }
 
       // Sort by ETA (closest first)
@@ -121,8 +120,8 @@ class DriverService {
 
     } catch (error) {
       console.error('❌ Error finding nearby drivers:', error);
-      // Fallback to mock data in case of error
-      return this.generateMockDrivers(location, 5);
+      // Return empty array instead of mock data
+      return [];
     }
   }
 
@@ -404,67 +403,7 @@ class DriverService {
     return degrees * (Math.PI / 180);
   }
 
-  /**
-   * Generate mock drivers for demo purposes when no real drivers are available
-   */
-  private generateMockDrivers(center: LocationCoordinate, count: number): Driver[] {
-    const mockNames = [
-      'Rajesh Kumar', 'Priya Sharma', 'Amit Patel', 'Sunita Devi', 'Vikram Singh',
-      'Anita Gupta', 'Ravi Verma', 'Kavita Joshi', 'Suresh Reddy', 'Meera Nair'
-    ];
 
-    const vehicleTypes = [
-      { type: 'Sedan', models: ['Swift Dzire', 'Honda Amaze', 'Hyundai Aura'], rideTypes: ['economy', 'comfort'] },
-      { type: 'Hatchback', models: ['Maruti Swift', 'Hyundai i20', 'Tata Altroz'], rideTypes: ['economy'] },
-      { type: 'SUV', models: ['Mahindra Scorpio', 'Tata Safari', 'Hyundai Creta'], rideTypes: ['comfort', 'premium'] },
-      { type: 'Premium', models: ['Honda City', 'Hyundai Verna', 'Skoda Rapid'], rideTypes: ['comfort', 'premium'] },
-      { type: 'Bike', models: ['Hero Splendor', 'Honda Activa', 'TVS Jupiter', 'Bajaj Pulsar', 'Royal Enfield'], rideTypes: ['bike'] },
-    ];
-
-    const colors = ['White', 'Silver', 'Black', 'Blue', 'Red', 'Grey'];
-
-    return Array.from({ length: count }, (_, index) => {
-      const vehicle = vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)];
-      const model = vehicle.models[Math.floor(Math.random() * vehicle.models.length)];
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      
-      // Generate location within 5km radius
-      const angle = Math.random() * 2 * Math.PI;
-      const distance = Math.random() * 0.05; // ~5km in degrees
-      const lat = center.lat + distance * Math.cos(angle);
-      const lng = center.lng + distance * Math.sin(angle);
-
-      const plateNumber = `KA${String(Math.floor(Math.random() * 100)).padStart(2, '0')}${
-        String.fromCharCode(65 + Math.floor(Math.random() * 26))
-      }${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${
-        String(Math.floor(Math.random() * 10000)).padStart(4, '0')
-      }`;
-
-      const distanceFromUser = this.calculateDistance(center.lat, center.lng, lat, lng);
-      const eta = this.calculateETA(distanceFromUser, vehicle.type);
-
-      return {
-        id: `mock_driver_${index + 1}`,
-        name: mockNames[index % mockNames.length],
-        lat,
-        lng,
-        heading: Math.random() * 360,
-        vehicle: {
-          type: vehicle.type,
-          color,
-          plateNumber,
-          model,
-          year: 2018 + Math.floor(Math.random() * 6),
-        },
-        rating: 4.0 + Math.random() * 1.0, // 4.0 to 5.0
-        eta,
-        status: 'available' as const,
-        totalRides: Math.floor(Math.random() * 1000) + 100,
-        isVerified: Math.random() > 0.2, // 80% verified
-        rideType: vehicle.rideTypes,
-      };
-    });
-  }
 
   /**
    * Create tables if they don't exist (for development)

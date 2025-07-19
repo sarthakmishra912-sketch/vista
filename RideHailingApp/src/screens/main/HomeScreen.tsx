@@ -13,6 +13,7 @@ import CustomMapView from '../../components/MapView';
 import RideBookingCard from '../../components/RideBookingCard';
 import { googleMapsService, LocationCoordinate, FareEstimate } from '../../services/mapsService';
 import { driverService, Driver } from '../../services/driverService';
+import { dataSeeder } from '../../services/dataSeeder';
 import { useAuth } from '../../context/AuthContext';
 import * as Location from 'expo-location';
 
@@ -68,7 +69,13 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
   const initializeDriverService = async () => {
     try {
       await driverService.initializeTables();
-      console.log('✅ Driver service initialized');
+      
+      // Initialize database with real data if needed
+      if (currentLocation && user) {
+        await dataSeeder.initializeIfNeeded(currentLocation, user.id);
+      }
+      
+      console.log('✅ Driver service and real data initialized');
     } catch (error) {
       console.error('❌ Error initializing driver service:', error);
     }
