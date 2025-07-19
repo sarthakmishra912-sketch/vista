@@ -17,6 +17,7 @@ import CustomMapView from '../../components/MapView';
 import * as Location from 'expo-location';
 import { LocationCoordinate } from '../../services/mapsService';
 import { driverService } from '../../services/driverService';
+import { rideRequestService } from '../../services/rideRequestService';
 
 const { width } = Dimensions.get('window');
 
@@ -207,33 +208,59 @@ const DriverHomeScreen: React.FC = ({ navigation }: any) => {
   /**
    * Accept the ride request
    */
-  const acceptRideRequest = () => {
-    if (!incomingRequest) return;
+  const acceptRideRequest = async () => {
+    if (!incomingRequest || !user) return;
 
-    Alert.alert(
-      '🎉 Ride Accepted!',
-      `Navigate to pickup location: ${incomingRequest.pickupAddress}`,
-      [
-        {
-          text: 'Start Navigation',
-          onPress: () => {
-            setIncomingRequest(null);
-            setAcceptanceTimer(0);
-            // In real app, navigate to DriverRideScreen
-            console.log('Navigate to pickup location');
-          }
-        }
-      ]
-    );
+    try {
+      // Handle acceptance through ride request service
+      const result = await rideRequestService.handleDriverAcceptance(
+        incomingRequest.id, 
+        user.id
+      );
+
+      if (result.success) {
+        Alert.alert(
+          '🎉 Ride Accepted!',
+          `Navigate to pickup location: ${incomingRequest.pickupAddress}`,
+          [
+            {
+              text: 'Start Navigation',
+              onPress: () => {
+                setIncomingRequest(null);
+                setAcceptanceTimer(0);
+                // In real app, navigate to DriverRideScreen
+                console.log('Navigate to pickup location');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.message || 'Failed to accept ride');
+      }
+    } catch (error) {
+      console.error('Error accepting ride:', error);
+      Alert.alert('Error', 'Failed to accept ride request');
+    }
   };
 
   /**
    * Decline the ride request
    */
-  const declineRideRequest = () => {
-    setIncomingRequest(null);
-    setAcceptanceTimer(0);
-    Alert.alert('Request Declined', 'Looking for more rides...');
+  const declineRideRequest = async () => {
+    if (!incomingRequest || !user) return;
+
+    try {
+      // Handle decline through ride request service
+      await rideRequestService.handleDriverDecline(incomingRequest.id, user.id);
+      
+      setIncomingRequest(null);
+      setAcceptanceTimer(0);
+      Alert.alert('Request Declined', 'Looking for more rides...');
+    } catch (error) {
+      console.error('Error declining ride:', error);
+      setIncomingRequest(null);
+      setAcceptanceTimer(0);
+    }
   };
 
   return (

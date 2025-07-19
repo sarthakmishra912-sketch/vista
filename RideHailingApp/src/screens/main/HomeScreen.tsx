@@ -14,6 +14,7 @@ import RideBookingCard from '../../components/RideBookingCard';
 import { googleMapsService, LocationCoordinate, FareEstimate } from '../../services/mapsService';
 import { driverService, Driver } from '../../services/driverService';
 import { dataSeeder } from '../../services/dataSeeder';
+import { rideRequestService } from '../../services/rideRequestService';
 import { useAuth } from '../../context/AuthContext';
 import * as Location from 'expo-location';
 
@@ -233,31 +234,21 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
   };
 
   const handleRideBooking = async (rideType: string, fareEstimate: FareEstimate) => {
-    // Get the closest available driver for this ride type
-    const availableDrivers = nearbyDrivers.filter(driver => 
-      driver.status === 'available' && 
-      (driver.rideType?.includes(rideType) || 
-       (driver.vehicle?.type && ['Sedan', 'Hatchback'].includes(driver.vehicle.type) && rideType === 'economy') ||
-       (driver.vehicle?.type && ['Sedan', 'Premium'].includes(driver.vehicle.type) && rideType === 'comfort') ||
-       (driver.vehicle?.type && ['Premium', 'SUV'].includes(driver.vehicle.type) && rideType === 'premium') ||
-       (driver.vehicle?.type === 'SUV' && rideType === 'xl'))
-    );
+    if (!user?.id || !pickupLocation || !destinationLocation || !pickupAddress || !destinationAddress) {
+      Alert.alert('Error', 'Please ensure pickup and destination are selected.');
+      return;
+    }
 
-    const closestDriver = availableDrivers.reduce((closest, driver) => {
-      if (!closest) return driver;
-      return (driver.eta || 999) < (closest.eta || 999) ? driver : closest;
-    }, null as Driver | null);
-
-    // Show enhanced confirmation dialog
+    // Show confirmation dialog
     Alert.alert(
       '🚗 Confirm Your Ride',
-      `📍 Pickup: ${pickupAddress}\n📍 Destination: ${destinationAddress}\n\n🚙 Vehicle: ${rideType}\n💰 Fare: ₹${Math.round(fareEstimate.total)}\n${closestDriver ? `👨‍✈️ Driver: ${closestDriver.name}${closestDriver.isVerified ? ' ✅' : ''}\n🕐 ETA: ${closestDriver.eta} minutes` : '⚠️ Finding nearest driver...'}`,
+      `📍 Pickup: ${pickupAddress}\n📍 Destination: ${destinationAddress}\n\n🚙 Vehicle: ${rideType}\n💰 Fare: ₹${Math.round(fareEstimate.total)}\n📏 Distance: ${fareEstimate.distance}km\n⏱️ Duration: ${Math.round((fareEstimate.estimatedTime || 0) / 60)} min`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: '🚗 Book Now',
           style: 'default',
-          onPress: () => processRideBooking(rideType, fareEstimate, closestDriver),
+          onPress: () => processRideBooking(rideType, fareEstimate),
         },
       ]
     );
@@ -265,117 +256,128 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
 
   const processRideBooking = async (
     rideType: string, 
-    fareEstimate: FareEstimate, 
-    assignedDriver: Driver | null
+    fareEstimate: FareEstimate
   ) => {
     try {
-      console.log('🚗 Starting ride booking process...');
+      console.log('🚗 Starting smart ride request process...');
       
-      // Show loading state
-      Alert.alert('🔄 Booking Your Ride', 'Please wait while we process your booking...');
-      
-      if (!user?.id) {
-        Alert.alert('Error', 'Please log in to book a ride.');
+      if (!user?.id || !pickupLocation || !destinationLocation || !pickupAddress || !destinationAddress) {
+        Alert.alert('Error', 'Missing required information for booking.');
         return;
       }
 
-      if (!pickupLocation || !destinationLocation) {
-        Alert.alert('Error', 'Pickup and destination locations are required.');
+      // Show searching state
+      Alert.alert('🔍 Searching for Drivers', 'Finding the best driver for you...');
+
+      // Initiate the smart ride request process
+      const requestResult = await rideRequestService.initiateRideRequest(
+        user.id,
+        pickupLocation,
+        destinationLocation,
+        pickupAddress,
+        destinationAddress,
+        rideType,
+        Math.round(fareEstimate.total),
+        fareEstimate.distance || 0,
+        Math.round((fareEstimate.estimatedTime || 0) / 60)
+      );
+
+      if (!requestResult.success) {
+        Alert.alert('😞 No Drivers Available', requestResult.message || 'Please try again later.');
         return;
       }
 
-      // Step 1: Create ride in database
-      console.log('📝 Creating ride in database...');
-      const { createRide } = await import('../services/rideService');
-      
-      const rideData = {
-        rider_id: user.id,
-        pickup_location: {
-          latitude: pickupLocation.lat,
-          longitude: pickupLocation.lng,
-          address: pickupAddress,
-        },
-        destination_location: {
-          latitude: destinationLocation.lat,
-          longitude: destinationLocation.lng,
-          address: destinationAddress,
-        },
-        ride_type: rideType as 'economy' | 'comfort' | 'premium' | 'xl',
-        payment_method: 'cash' as const, // TODO: Get from user preference
-        fare: Math.round(fareEstimate.total),
-        distance: fareEstimate.distance || 0,
-        estimated_duration: fareEstimate.estimatedTime || 0,
-      };
+      console.log(`✅ Ride request initiated: ${requestResult.requestId}`);
 
-      const rideResult = await createRide(rideData);
-      
-      if (rideResult.error) {
-        throw new Error(rideResult.error);
-      }
-
-      const createdRide = rideResult.data;
-      console.log('✅ Ride created successfully:', createdRide.id);
-
-      // Step 2: Assign driver if one was selected
-      if (assignedDriver) {
-        console.log('👨‍✈️ Assigning driver:', assignedDriver.name);
-        
-        // Update driver status to busy
-        await driverService.updateDriverStatus(assignedDriver.id, 'busy');
-        
-        // TODO: Send ride request to specific driver via WebSocket
-        console.log('📱 Sending ride request to driver...');
-      }
-
-      // Step 3: Close booking card and navigate
-      setShowBookingCard(false);
-      
-      // Step 4: Show success and tracking options
-      console.log('🧭 Ride booking completed successfully');
-      
+      // Show searching progress
       Alert.alert(
-        '✅ Ride Booked Successfully!',
-        `🆔 Ride ID: ${createdRide.id}\n${assignedDriver ? `👨‍✈️ Driver: ${assignedDriver.name}\n🚗 Vehicle: ${assignedDriver.vehicle?.plateNumber}\n🕐 ETA: ${assignedDriver.eta} minutes` : '🔍 Finding driver...'}\n\n📱 You will receive updates via notifications.`,
+        '🔍 Searching for Drivers',
+        'We\'re finding the best driver for you. You\'ll be notified once a driver accepts your request.',
         [
-          {
-            text: '📱 Track Ride',
+          { 
+            text: 'Cancel', 
+            style: 'destructive',
             onPress: () => {
-              // Navigate to RideTracking screen
-              console.log('🧭 Navigating to RideTracking with ride details');
-              navigation.navigate('RideTracking', {
-                rideDetails: {
-                  rideId: createdRide.id,
-                  rideType,
-                  pickupLocation,
-                  destinationLocation,
-                  pickupAddress,
-                  destinationAddress,
-                  assignedDriver,
-                  fare: Math.round(fareEstimate.total),
-                }
-              });
-            },
+              if (requestResult.requestId) {
+                rideRequestService.cancelRideRequest(requestResult.requestId, user.id);
+              }
+            }
           },
+          { text: 'Wait', style: 'default' }
         ]
       );
 
-      // Step 5: Refresh drivers to update availability
-      if (currentLocation) {
-        await loadNearbyDrivers(currentLocation);
-      }
+      // Monitor request status (in real app, this would be via WebSocket)
+      monitorRideRequestStatus(requestResult.requestId!);
 
     } catch (error) {
-      console.error('❌ Error booking ride:', error);
+      console.error('❌ Error in ride booking process:', error);
       Alert.alert(
         'Booking Failed',
-        'Unable to book your ride. Please try again.',
-        [
-          { text: 'Cancel' },
-          { text: 'Retry', onPress: () => processRideBooking(rideType, fareEstimate, assignedDriver) }
-        ]
+        'Unable to process your ride request. Please try again.',
+        [{ text: 'OK' }]
       );
     }
   };
+
+  /**
+   * Monitor ride request status and notify user of updates
+   */
+  const monitorRideRequestStatus = (requestId: string) => {
+    const checkStatus = () => {
+      const request = rideRequestService.getRequestStatus(requestId);
+      
+      if (!request) {
+        return; // Request completed or cancelled
+      }
+
+      switch (request.status) {
+        case 'searching':
+          console.log(`🔍 Still searching... (attempt ${request.requestAttempts}/${request.maxAttempts})`);
+          // Continue monitoring
+          setTimeout(checkStatus, 2000);
+          break;
+          
+        case 'driver_assigned':
+          console.log(`📱 Request sent to driver ${request.assignedDriverId}`);
+          // Continue monitoring
+          setTimeout(checkStatus, 2000);
+          break;
+          
+        case 'accepted':
+          Alert.alert(
+            '🎉 Driver Found!',
+            'A driver has accepted your request. You\'ll be redirected to track your ride.',
+            [{
+              text: 'Track Ride',
+              onPress: () => {
+                // Navigate to ride tracking
+                navigation.navigate('RideTracking', {
+                  rideId: requestId, // In real app, this would be the actual ride ID
+                  assignedDriver: request.assignedDriverId
+                });
+              }
+            }]
+          );
+          break;
+          
+        case 'expired':
+          Alert.alert(
+            '😞 No Drivers Available',
+            'Sorry, no drivers are available currently. Please try again later.',
+            [{ text: 'OK' }]
+          );
+          break;
+          
+        case 'cancelled':
+          console.log('🚫 Ride request was cancelled');
+          break;
+      }
+    };
+
+         // Start monitoring
+     setTimeout(checkStatus, 1000);
+   };
 
   const handleDriverPress = (driver: Driver) => {
     const vehicleInfo = driver.vehicle 
