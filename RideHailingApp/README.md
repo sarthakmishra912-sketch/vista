@@ -5,10 +5,11 @@ A modern ride-hailing application built with React Native (Expo) and PostgreSQL,
 ## ✨ Features
 
 ### 🔐 Authentication & User Management
-- **Email/Password Authentication** with JWT tokens
+- **OTP-based Phone Authentication** with SMS verification (industry standard)
+- **Secure JWT Token Management** with database session storage
 - **Dual User Types**: Riders and Drivers with separate interfaces
 - **Profile Management** with avatar upload support
-- **Secure Session Management** with PostgreSQL storage
+- **Rate Limiting and Fraud Prevention** with attempt tracking
 
 ### 🚕 Ride Management
 - **Ride Booking System** with multiple vehicle types (Economy, Comfort, Premium, XL)

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import bcrypt from 'bcryptjs';
 import { query } from './database';
+import { otpService, OTPResult, VerifyOTPResult } from './otpService';
 import { User } from '../types';
 
 // JWT secret - in production, this should be from environment variables
@@ -36,144 +36,28 @@ const verifyJWT = (token: string): any => {
   }
 };
 
-// Sign up function
-export const signUp = async (email: string, password: string, userData: any) => {
-  try {
-    // Check if user already exists
-    const existingUser = await query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
-    
-    if (existingUser.data && existingUser.data.length > 0) {
-      return { data: null, error: 'User already exists' };
-    }
-    
-    // Hash password
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-    
-    // Create user
-    const userResult = await query(
-      `INSERT INTO users (email, password_hash, name, phone, user_type) 
-       VALUES ($1, $2, $3, $4, $5) 
-       RETURNING id, email, name, phone, user_type, created_at`,
-      [email, passwordHash, userData.name, userData.phone, userData.user_type || 'rider']
-    );
-    
-    if (userResult.error) {
-      return { data: null, error: userResult.error };
-    }
-    
-    const user = userResult.data[0];
-    
-    // If user is a driver, create driver record
-    if (userData.user_type === 'driver' && userData.vehicle_info && userData.license_number) {
-      await query(
-        `INSERT INTO drivers (id, license_number, vehicle_info) 
-         VALUES ($1, $2, $3)`,
-        [user.id, userData.license_number, JSON.stringify(userData.vehicle_info)]
-      );
-    }
-    
-    // Create session token
-    const tokenPayload = {
-      userId: user.id,
-      email: user.email,
-      userType: user.user_type,
-      exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days
-    };
-    
-    const token = createJWT(tokenPayload);
-    
-    // Store session in database
-    await query(
-      `INSERT INTO user_sessions (user_id, token, expires_at) 
-       VALUES ($1, $2, $3)`,
-      [user.id, token, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
-    );
-    
-    // Store token locally
-    await AsyncStorage.setItem('auth_token', token);
-    
-    return { 
-      data: { 
-        user: { ...user, access_token: token },
-        session: { access_token: token }
-      }, 
-      error: null 
-    };
-  } catch (error: any) {
-    return { data: null, error: error.message };
-  }
+// Request OTP for phone number
+export const requestOTP = async (phone: string): Promise<OTPResult> => {
+  return await otpService.requestOTP(phone);
 };
 
-// Sign in function
-export const signIn = async (email: string, password: string) => {
-  try {
-    // Get user with password hash
-    const userResult = await query(
-      `SELECT u.*, d.license_number, d.is_verified as driver_verified, 
-              d.is_available, d.current_location, d.rating, d.total_rides, 
-              d.vehicle_info
-       FROM users u 
-       LEFT JOIN drivers d ON u.id = d.id 
-       WHERE u.email = $1`,
-      [email]
-    );
-    
-    if (userResult.error || !userResult.data || userResult.data.length === 0) {
-      return { data: null, error: 'Invalid email or password' };
-    }
-    
-    const user = userResult.data[0];
-    
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
-    
-    if (!isValidPassword) {
-      return { data: null, error: 'Invalid email or password' };
-    }
-    
-    // Create session token
-    const tokenPayload = {
-      userId: user.id,
-      email: user.email,
-      userType: user.user_type,
-      exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days
-    };
-    
-    const token = createJWT(tokenPayload);
-    
-    // Clean up old sessions
-    await query(
-      'DELETE FROM user_sessions WHERE user_id = $1 AND expires_at < NOW()',
-      [user.id]
-    );
-    
-    // Store new session
-    await query(
-      `INSERT INTO user_sessions (user_id, token, expires_at) 
-       VALUES ($1, $2, $3)`,
-      [user.id, token, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
-    );
-    
-    // Store token locally
-    await AsyncStorage.setItem('auth_token', token);
-    
-    // Remove sensitive data
-    delete user.password_hash;
-    
-    return { 
-      data: { 
-        user: { ...user, access_token: token },
-        session: { access_token: token }
-      }, 
-      error: null 
-    };
-  } catch (error: any) {
-    return { data: null, error: error.message };
-  }
+// Verify OTP and complete authentication
+export const verifyOTPAndSignIn = async (
+  sessionId: string, 
+  otp: string, 
+  userData?: any
+): Promise<VerifyOTPResult> => {
+  return await otpService.verifyOTP(sessionId, otp, userData);
+};
+
+// Resend OTP
+export const resendOTP = async (sessionId: string): Promise<OTPResult> => {
+  return await otpService.resendOTP(sessionId);
+};
+
+// Get OTP session status
+export const getOTPSessionStatus = async (sessionId: string) => {
+  return await otpService.getSessionStatus(sessionId);
 };
 
 // Sign out function
@@ -227,7 +111,14 @@ export const getCurrentUser = async (): Promise<User | null> => {
     }
     
     const user = userResult.data[0];
-    delete user.password_hash;
+    
+    // Parse JSON fields
+    if (user.current_location) {
+      user.current_location = JSON.parse(user.current_location);
+    }
+    if (user.vehicle_info) {
+      user.vehicle_info = JSON.parse(user.vehicle_info);
+    }
     
     return user;
   } catch (error) {
@@ -262,4 +153,117 @@ export const verifySession = async (token: string): Promise<boolean> => {
 // Get auth token
 export const getAuthToken = async (): Promise<string | null> => {
   return await AsyncStorage.getItem('auth_token');
+};
+
+// Update user profile
+export const updateUserProfile = async (userId: string, updates: Partial<User>) => {
+  try {
+    const updateFields = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (updates.name) {
+      updateFields.push(`name = $${paramIndex}`);
+      values.push(updates.name);
+      paramIndex++;
+    }
+
+    if (updates.email) {
+      updateFields.push(`email = $${paramIndex}`);
+      values.push(updates.email);
+      paramIndex++;
+    }
+
+    if (updates.avatar_url) {
+      updateFields.push(`avatar_url = $${paramIndex}`);
+      values.push(updates.avatar_url);
+      paramIndex++;
+    }
+
+    if (updateFields.length === 0) {
+      return { data: null, error: 'No fields to update' };
+    }
+
+    updateFields.push(`updated_at = NOW()`);
+    values.push(userId);
+
+    const result = await query(
+      `UPDATE users SET ${updateFields.join(', ')} 
+       WHERE id = $${paramIndex} 
+       RETURNING *`,
+      values
+    );
+
+    if (result.error) {
+      throw new Error(result.error);
+    }
+
+    return { data: result.data[0], error: null };
+  } catch (error: any) {
+    return { data: null, error: error.message };
+  }
+};
+
+// Check if phone number is already registered
+export const checkPhoneExists = async (phone: string): Promise<{ exists: boolean; user?: User }> => {
+  try {
+    const result = await query(
+      'SELECT id, phone, name, user_type FROM users WHERE phone = $1',
+      [phone]
+    );
+
+    if (result.error) {
+      throw new Error(result.error);
+    }
+
+    const exists = result.data && result.data.length > 0;
+    return {
+      exists,
+      user: exists ? result.data[0] : undefined,
+    };
+  } catch (error) {
+    console.error('Error checking phone exists:', error);
+    return { exists: false };
+  }
+};
+
+// Delete user account
+export const deleteUserAccount = async (userId: string) => {
+  try {
+    // This will cascade delete related records due to foreign key constraints
+    const result = await query(
+      'DELETE FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (result.error) {
+      throw new Error(result.error);
+    }
+
+    // Clear local storage
+    await AsyncStorage.removeItem('auth_token');
+
+    return { success: true, error: null };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+// Legacy functions for backward compatibility (will be removed)
+export const signUp = async (phone: string, userData: any) => {
+  console.warn('signUp is deprecated. Use requestOTP and verifyOTPAndSignIn instead.');
+  const otpResult = await requestOTP(phone);
+  return {
+    data: otpResult.success ? { sessionId: otpResult.sessionId } : null,
+    error: otpResult.error || null,
+  };
+};
+
+export const signIn = async (phone: string) => {
+  console.warn('signIn is deprecated. Use requestOTP and verifyOTPAndSignIn instead.');
+  const otpResult = await requestOTP(phone);
+  return {
+    data: otpResult.success ? { sessionId: otpResult.sessionId } : null,
+    error: otpResult.error || null,
+  };
 };

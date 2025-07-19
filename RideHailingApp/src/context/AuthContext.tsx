@@ -1,15 +1,25 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '../types';
-import { getCurrentUser, signIn as authSignIn, signUp as authSignUp, signOut as authSignOut } from '../services/authService';
+import { 
+  getCurrentUser, 
+  requestOTP, 
+  verifyOTPAndSignIn, 
+  resendOTP, 
+  getOTPSessionStatus,
+  signOut as authSignOut 
+} from '../services/authService';
 import { webSocketService } from '../services/websocketService';
 import { notificationService } from '../services/notificationService';
 import { paymentService } from '../services/paymentService';
+import { OTPResult, VerifyOTPResult } from '../services/otpService';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, userData: any) => Promise<any>;
+  requestOTP: (phone: string) => Promise<OTPResult>;
+  verifyOTP: (sessionId: string, otp: string, userData?: any) => Promise<VerifyOTPResult>;
+  resendOTP: (sessionId: string) => Promise<OTPResult>;
+  getSessionStatus: (sessionId: string) => Promise<any>;
   signOut: () => Promise<void>;
 }
 
@@ -68,57 +78,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const handleRequestOTP = async (phone: string): Promise<OTPResult> => {
     try {
       setLoading(true);
-      const result = await authSignIn(email, password);
-      
-      if (result.error) {
-        return result;
-      }
-      
-      setUser(result.data.user);
-      
-      // Initialize services after successful sign in
-      const pushToken = await notificationService.initialize();
-      if (pushToken) {
-        await notificationService.savePushToken(result.data.user.id);
-      }
-      
-      await webSocketService.connect();
-      
-      return result;
+      return await requestOTP(phone);
     } catch (error: any) {
-      return { data: null, error: error.message };
+      return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
   };
 
-  const signUp = async (email: string, password: string, userData: any) => {
+  const handleVerifyOTP = async (sessionId: string, otp: string, userData?: any): Promise<VerifyOTPResult> => {
     try {
       setLoading(true);
-      const result = await authSignUp(email, password, userData);
+      const result = await verifyOTPAndSignIn(sessionId, otp, userData);
       
-      if (result.error) {
-        return result;
+      if (result.success && result.user) {
+        setUser(result.user);
+        
+        // Initialize services after successful verification
+        const pushToken = await notificationService.initialize();
+        if (pushToken) {
+          await notificationService.savePushToken(result.user.id);
+        }
+        
+        await webSocketService.connect();
       }
-      
-      setUser(result.data.user);
-      
-      // Initialize services after successful sign up
-      const pushToken = await notificationService.initialize();
-      if (pushToken) {
-        await notificationService.savePushToken(result.data.user.id);
-      }
-      
-      await webSocketService.connect();
       
       return result;
     } catch (error: any) {
-      return { data: null, error: error.message };
+      return { success: false, error: error.message };
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async (sessionId: string): Promise<OTPResult> => {
+    try {
+      return await resendOTP(sessionId);
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const handleGetSessionStatus = async (sessionId: string) => {
+    try {
+      return await getOTPSessionStatus(sessionId);
+    } catch (error: any) {
+      return { valid: false, error: error.message };
     }
   };
 
@@ -146,8 +154,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     loading,
-    signIn,
-    signUp,
+    requestOTP: handleRequestOTP,
+    verifyOTP: handleVerifyOTP,
+    resendOTP: handleResendOTP,
+    getSessionStatus: handleGetSessionStatus,
     signOut,
   };
 

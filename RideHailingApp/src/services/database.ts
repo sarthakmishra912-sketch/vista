@@ -54,12 +54,11 @@ export const initializeDatabase = async () => {
     -- Users table
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      email VARCHAR(255) UNIQUE NOT NULL,
-      phone VARCHAR(20),
+      phone VARCHAR(20) UNIQUE NOT NULL,
+      email VARCHAR(255),
       name VARCHAR(255) NOT NULL,
       avatar_url TEXT,
       user_type VARCHAR(20) CHECK (user_type IN ('rider', 'driver')) NOT NULL,
-      password_hash TEXT NOT NULL,
       is_verified BOOLEAN DEFAULT false,
       push_token TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -124,6 +123,7 @@ export const initializeDatabase = async () => {
     );
 
     -- Create indexes for better performance
+    CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE INDEX IF NOT EXISTS idx_drivers_location ON drivers USING GIN(current_location);
     CREATE INDEX IF NOT EXISTS idx_drivers_available ON drivers(is_available) WHERE is_available = true;
