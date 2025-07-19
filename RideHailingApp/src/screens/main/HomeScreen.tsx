@@ -1,315 +1,536 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   Alert,
-  Dimensions,
   SafeAreaView,
   StatusBar,
-  Modal,
-  ScrollView,
+  Text,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
+import CustomMapView from '../../components/MapView';
+import RideBookingCard from '../../components/RideBookingCard';
+import { googleMapsService, LocationCoordinate, FareEstimate } from '../../services/mapsService';
+import { driverService, Driver } from '../../services/driverService';
+import { dataSeeder } from '../../services/dataSeeder';
+import { rideRequestService } from '../../services/rideRequestService';
 import { useAuth } from '../../context/AuthContext';
-import { Location as LocationType } from '../../types';
+import * as Location from 'expo-location';
 
-const { width, height } = Dimensions.get('window');
-
-const HomeScreen: React.FC = () => {
+const HomeScreen: React.FC = ({ navigation }: any) => {
   const { user } = useAuth();
-  const mapRef = useRef<MapView>(null);
   
-  const [currentLocation, setCurrentLocation] = useState<LocationType | null>(null);
-  const [destination, setDestination] = useState<LocationType | null>(null);
-  const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [pickupAddress, setPickupAddress] = useState('');
-  const [destinationAddress, setDestinationAddress] = useState('');
-  const [selectedRideType, setSelectedRideType] = useState('economy');
-  const [estimatedFare, setEstimatedFare] = useState(0);
-  const [estimatedTime, setEstimatedTime] = useState(0);
+  // State for locations
+  const [currentLocation, setCurrentLocation] = useState<LocationCoordinate | null>(null);
+  const [pickupLocation, setPickupLocation] = useState<LocationCoordinate | null>(null);
+  const [destinationLocation, setDestinationLocation] = useState<LocationCoordinate | null>(null);
+  const [pickupAddress, setPickupAddress] = useState<string>('');
+  const [destinationAddress, setDestinationAddress] = useState<string>('');
 
-  const rideTypes = [
-    { id: 'economy', name: 'Economy', icon: 'car', price: 1.0, time: '2-5 min' },
-    { id: 'comfort', name: 'Comfort', icon: 'car-sport', price: 1.3, time: '3-8 min' },
-    { id: 'premium', name: 'Premium', icon: 'car', price: 1.8, time: '5-12 min' },
-    { id: 'xl', name: 'XL', icon: 'car', price: 1.5, time: '4-10 min' },
-  ];
+  // State for drivers and ride
+  const [nearbyDrivers, setNearbyDrivers] = useState<Driver[]>([]);
+  const [showBookingCard, setShowBookingCard] = useState(false);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
 
   useEffect(() => {
     getCurrentLocation();
+    initializeDriverService();
   }, []);
+
+  // Load nearby drivers when location changes
+  useEffect(() => {
+    if (currentLocation) {
+      loadNearbyDrivers(currentLocation);
+    }
+  }, [currentLocation]);
+
+  // Set up periodic driver refresh every 30 seconds (Step 6: Auto-refresh)
+  useEffect(() => {
+    if (!currentLocation) return;
+
+    console.log('⏰ Setting up auto-refresh every 30 seconds...');
+    const refreshInterval = setInterval(() => {
+      if (currentLocation && !isLoadingDrivers) {
+        console.log('🔄 Auto-refresh: Updating driver positions...');
+        loadNearbyDrivers(currentLocation);
+      }
+    }, 30000); // 30 seconds
+
+    return () => {
+      console.log('🛑 Clearing auto-refresh interval');
+      clearInterval(refreshInterval);
+    };
+  }, [currentLocation, isLoadingDrivers]);
+
+  /**
+   * Initialize driver service and database tables
+   */
+  const initializeDriverService = async () => {
+    try {
+      await driverService.initializeTables();
+      
+      // Initialize database with real data if needed
+      if (currentLocation && user) {
+        await dataSeeder.initializeIfNeeded(currentLocation, user.id);
+      }
+      
+      console.log('✅ Driver service and real data initialized');
+    } catch (error) {
+      console.error('❌ Error initializing driver service:', error);
+    }
+  };
+
+  /**
+   * Load nearby drivers from the real driver service
+   * Following the flow: Get location → Query PostGIS → Fetch details → Calculate ETAs → Display
+   */
+  const loadNearbyDrivers = async (location: LocationCoordinate) => {
+    try {
+      setIsLoadingDrivers(true);
+      console.log('🔍 Step 1: Starting driver search near', location.lat, location.lng);
+
+      // Step 1: Query PostGIS for nearby drivers within 10km radius
+      console.log('🗄️ Step 2: Querying PostGIS for nearby drivers...');
+      const drivers = await driverService.findNearbyDrivers(location, 10000);
+      
+      if (drivers.length > 0) {
+        console.log(`📊 Step 3: Found ${drivers.length} drivers, fetching detailed info...`);
+        
+        // Step 4: Calculate ETAs are already done in the service
+        // Step 5: Update state to display on map
+        setNearbyDrivers(drivers);
+        
+        console.log('✅ Step 4: Driver data loaded and displayed:', {
+          total: drivers.length,
+          available: drivers.filter(d => d.status === 'available').length,
+          averageETA: Math.round(drivers.reduce((sum, d) => sum + (d.eta || 0), 0) / drivers.length),
+          vehicleTypes: [...new Set(drivers.map(d => d.vehicle?.type).filter(Boolean))]
+        });
+      } else {
+        console.log('⚠️ No drivers found in the area');
+        setNearbyDrivers([]);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in driver loading flow:', error);
+      Alert.alert(
+        'Driver Loading Error',
+        'Unable to load nearby drivers. Please check your connection and try again.',
+        [
+          { text: 'Cancel' },
+          { text: 'Retry', onPress: () => loadNearbyDrivers(location) }
+        ]
+      );
+    } finally {
+      setIsLoadingDrivers(false);
+    }
+  };
+
+  /**
+   * Refresh drivers periodically
+   */
+  const refreshDrivers = async () => {
+    if (currentLocation) {
+      await loadNearbyDrivers(currentLocation);
+    }
+  };
 
   const getCurrentLocation = async () => {
     try {
+      setIsLoadingLocation(true);
+      console.log('📍 Step 1: Getting current location...');
+      
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required to use this app');
+        console.log('❌ Location permission denied');
+        Alert.alert(
+          'Permission Required',
+          'Please enable location permissions to use this feature.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Settings', onPress: () => Location.requestForegroundPermissionsAsync() },
+          ]
+        );
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
-      const currentPos: LocationType = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+      console.log('✅ Location permission granted, fetching coordinates...');
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const newLocation = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
       };
+
+      console.log('📍 Location obtained:', newLocation);
+      setCurrentLocation(newLocation);
       
-      setCurrentLocation(currentPos);
-      setPickupLocation(currentPos);
-
       // Get address for current location
-      const reverseGeocode = await Location.reverseGeocodeAsync(currentPos);
-      if (reverseGeocode[0]) {
-        const address = `${reverseGeocode[0].street || ''} ${reverseGeocode[0].city || ''}`.trim();
-        setPickupAddress(address);
+      console.log('🗺️ Reverse geocoding location...');
+      const address = await googleMapsService.reverseGeocode(
+        newLocation.lat, 
+        newLocation.lng
+      );
+      
+      if (address) {
+        console.log('📍 Address resolved:', address.formattedAddress);
+        setPickupLocation(newLocation);
+        setPickupAddress(address.formattedAddress);
       }
-
-      // Center map on current location
-      if (mapRef.current) {
-        mapRef.current.animateToRegion({
-          ...currentPos,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-      }
+      
+      // Trigger the driver loading flow
+      console.log('🚗 Initiating driver search flow...');
+      await loadNearbyDrivers(newLocation);
+      
     } catch (error) {
-      Alert.alert('Error', 'Failed to get current location');
+      console.error('❌ Error in location flow:', error);
+      Alert.alert(
+        'Error',
+        'Unable to get your current location. Please check your location settings.',
+        [
+          { text: 'OK' },
+          { text: 'Retry', onPress: getCurrentLocation },
+        ]
+      );
+    } finally {
+      setIsLoadingLocation(false);
     }
   };
 
-  const handleMapPress = (event: any) => {
-    const coordinate = event.nativeEvent.coordinate;
-    if (!pickupLocation) {
-      setPickupLocation(coordinate);
-    } else if (!destination) {
-      setDestination(coordinate);
-      calculateFareAndTime(pickupLocation, coordinate);
-    }
+  const handleShowBookingCard = () => {
+    setShowBookingCard(true);
   };
 
-  const calculateFareAndTime = (pickup: LocationType, dest: LocationType) => {
-    // Simple distance calculation (in a real app, use routing APIs)
-    const distance = getDistanceFromLatLonInKm(
-      pickup.latitude,
-      pickup.longitude,
-      dest.latitude,
-      dest.longitude
-    );
+  const handleCloseBookingCard = () => {
+    setShowBookingCard(false);
+  };
+
+  const handlePickupSelect = async (location: LocationCoordinate, address: string) => {
+    setPickupLocation(location);
     
-    const baseFare = Math.max(5, distance * 2); // Minimum $5, $2 per km
-    setEstimatedFare(baseFare);
-    setEstimatedTime(Math.max(5, Math.round(distance * 3))); // Minimum 5 min, 3 min per km
+    // Get formatted address
+    try {
+      const addressData = await googleMapsService.reverseGeocode(location.lat, location.lng);
+      setPickupAddress(addressData?.formattedAddress || address);
+    } catch (error) {
+      setPickupAddress(address);
+    }
   };
 
-  const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c; // Distance in km
-    return d;
+  const handleDestinationSelect = async (location: LocationCoordinate, address: string) => {
+    setDestinationLocation(location);
+    
+    // Get formatted address
+    try {
+      const addressData = await googleMapsService.reverseGeocode(location.lat, location.lng);
+      setDestinationAddress(addressData?.formattedAddress || address);
+    } catch (error) {
+      setDestinationAddress(address);
+    }
   };
 
-  const deg2rad = (deg: number) => {
-    return deg * (Math.PI / 180);
-  };
-
-  const handleBookRide = () => {
-    if (!pickupLocation || !destination) {
-      Alert.alert('Error', 'Please select pickup and destination locations');
+  const handleRideBooking = async (rideType: string, fareEstimate: FareEstimate) => {
+    if (!user?.id || !pickupLocation || !destinationLocation || !pickupAddress || !destinationAddress) {
+      Alert.alert('Error', 'Please ensure pickup and destination are selected.');
       return;
     }
-    setShowBookingModal(true);
+
+    // Show confirmation dialog
+    Alert.alert(
+      '🚗 Confirm Your Ride',
+      `📍 Pickup: ${pickupAddress}\n📍 Destination: ${destinationAddress}\n\n🚙 Vehicle: ${rideType}\n💰 Fare: ₹${Math.round(fareEstimate.total)}\n📏 Distance: ${fareEstimate.distance}km\n⏱️ Duration: ${Math.round((fareEstimate.estimatedTime || 0) / 60)} min`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: '🚗 Book Now',
+          style: 'default',
+          onPress: () => processRideBooking(rideType, fareEstimate),
+        },
+      ]
+    );
   };
 
-  const confirmBooking = () => {
-    // In a real app, this would call the Supabase API to create a ride request
-    Alert.alert('Success', 'Ride booked successfully! Finding a driver...');
-    setShowBookingModal(false);
-    // Reset selections
-    setDestination(null);
-    setPickupLocation(currentLocation);
+  const processRideBooking = async (
+    rideType: string, 
+    fareEstimate: FareEstimate
+  ) => {
+    try {
+      console.log('🚗 Starting smart ride request process...');
+      
+      if (!user?.id || !pickupLocation || !destinationLocation || !pickupAddress || !destinationAddress) {
+        Alert.alert('Error', 'Missing required information for booking.');
+        return;
+      }
+
+      // Show searching state
+      Alert.alert('🔍 Searching for Drivers', 'Finding the best driver for you...');
+
+      // Initiate the smart ride request process
+      const requestResult = await rideRequestService.initiateRideRequest(
+        user.id,
+        pickupLocation,
+        destinationLocation,
+        pickupAddress,
+        destinationAddress,
+        rideType,
+        Math.round(fareEstimate.total),
+        fareEstimate.distance || 0,
+        Math.round((fareEstimate.estimatedTime || 0) / 60)
+      );
+
+      if (!requestResult.success) {
+        Alert.alert('😞 No Drivers Available', requestResult.message || 'Please try again later.');
+        return;
+      }
+
+      console.log(`✅ Ride request initiated: ${requestResult.requestId}`);
+
+      // Show searching progress
+      Alert.alert(
+        '🔍 Searching for Drivers',
+        'We\'re finding the best driver for you. You\'ll be notified once a driver accepts your request.',
+        [
+          { 
+            text: 'Cancel', 
+            style: 'destructive',
+            onPress: () => {
+              if (requestResult.requestId) {
+                rideRequestService.cancelRideRequest(requestResult.requestId, user.id);
+              }
+            }
+          },
+          { text: 'Wait', style: 'default' }
+        ]
+      );
+
+      // Monitor request status (in real app, this would be via WebSocket)
+      monitorRideRequestStatus(requestResult.requestId!);
+
+    } catch (error) {
+      console.error('❌ Error in ride booking process:', error);
+      Alert.alert(
+        'Booking Failed',
+        'Unable to process your ride request. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
-  const resetSelection = () => {
-    setDestination(null);
-    setPickupLocation(currentLocation);
-    setEstimatedFare(0);
-    setEstimatedTime(0);
+  /**
+   * Monitor ride request status and notify user of updates
+   */
+  const monitorRideRequestStatus = (requestId: string) => {
+    const checkStatus = () => {
+      const request = rideRequestService.getRequestStatus(requestId);
+      
+      if (!request) {
+        return; // Request completed or cancelled
+      }
+
+      switch (request.status) {
+        case 'searching':
+          console.log(`🔍 Still searching... (attempt ${request.requestAttempts}/${request.maxAttempts})`);
+          // Continue monitoring
+          setTimeout(checkStatus, 2000);
+          break;
+          
+        case 'driver_assigned':
+          console.log(`📱 Request sent to driver ${request.assignedDriverId}`);
+          // Continue monitoring
+          setTimeout(checkStatus, 2000);
+          break;
+          
+        case 'accepted':
+          Alert.alert(
+            '🎉 Driver Found!',
+            'A driver has accepted your request. You\'ll be redirected to track your ride.',
+            [{
+              text: 'Track Ride',
+              onPress: () => {
+                // Navigate to ride tracking
+                navigation.navigate('RideTracking', {
+                  rideId: requestId, // In real app, this would be the actual ride ID
+                  assignedDriver: request.assignedDriverId
+                });
+              }
+            }]
+          );
+          break;
+          
+        case 'expired':
+          Alert.alert(
+            '😞 No Drivers Available',
+            'Sorry, no drivers are available currently. Please try again later.',
+            [{ text: 'OK' }]
+          );
+          break;
+          
+        case 'cancelled':
+          console.log('🚫 Ride request was cancelled');
+          break;
+      }
+    };
+
+         // Start monitoring
+     setTimeout(checkStatus, 1000);
+   };
+
+  const handleDriverPress = (driver: Driver) => {
+    const vehicleInfo = driver.vehicle 
+      ? `${driver.vehicle.type} • ${driver.vehicle.color}\n${driver.vehicle.plateNumber}`
+      : 'Vehicle info not available';
+    
+    const additionalInfo = [
+      `Rating: ${driver.rating?.toFixed(1) || 'N/A'}⭐`,
+      `Total Rides: ${driver.totalRides || 0}`,
+      `ETA: ${driver.eta || 'N/A'} minutes`,
+      driver.isVerified ? '✅ Verified Driver' : '⚠️ Unverified',
+      `Status: ${driver.status}`,
+    ].join('\n');
+
+    Alert.alert(
+      `${driver.name}${driver.isVerified ? ' ✅' : ''}`,
+      `${vehicleInfo}\n\n${additionalInfo}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'View Profile', 
+          onPress: () => console.log('View driver profile:', driver.id) 
+        },
+        { 
+          text: 'Select Driver', 
+          style: 'default',
+          onPress: () => handleSelectDriver(driver)
+        },
+      ]
+    );
+  };
+
+  const handleSelectDriver = async (driver: Driver) => {
+    try {
+      console.log('🚗 Driver selected:', driver.name, driver.id);
+      
+      // You could navigate to a driver details screen or start booking process
+      Alert.alert(
+        'Driver Selected',
+        `You selected ${driver.name}. This would typically start the booking process.`,
+        [{ text: 'OK' }]
+      );
+      
+      // Example: Update driver status to busy (in a real app)
+      // await driverService.updateDriverStatus(driver.id, 'busy');
+      
+    } catch (error) {
+      console.error('Error selecting driver:', error);
+      Alert.alert('Error', 'Unable to select driver. Please try again.');
+    }
+  };
+
+  const handleMapPress = (coordinate: any) => {
+    // Option to set pickup/destination by tapping on map
+    if (!pickupLocation) {
+      handlePickupSelect(coordinate, 'Selected location');
+    } else if (!destinationLocation) {
+      handleDestinationSelect(coordinate, 'Selected location');
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Good morning</Text>
-          <Text style={styles.userName}>{user?.user_metadata?.name || 'User'}</Text>
-        </View>
-        <TouchableOpacity style={styles.menuButton}>
-          <Ionicons name="menu" size={24} color="#1A1A1A" />
+      {/* Map View */}
+      <CustomMapView
+        drivers={nearbyDrivers}
+        pickupLocation={pickupLocation || undefined}
+        dropoffLocation={destinationLocation || undefined}
+        currentUserLocation={currentLocation || undefined}
+        userType="rider"
+        showUserLocation={true}
+        followUserLocation={false}
+        showTraffic={true}
+        searchRadius={5000}
+        onDriverPress={handleDriverPress}
+        onLocationPress={handleMapPress}
+      />
+
+      {/* Top Controls */}
+      <View style={styles.topControls}>
+        <TouchableOpacity style={styles.menuButton} onPress={() => navigation.openDrawer()}>
+          <Ionicons name="menu" size={24} color="#333" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Profile')}>
+          <Ionicons name="person-circle" size={32} color="#007AFF" />
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#666" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Where to?"
-            value={destinationAddress}
-            onChangeText={setDestinationAddress}
+      {/* Search Button */}
+      {!showBookingCard && (
+        <View style={styles.searchButtonContainer}>
+          <TouchableOpacity 
+            style={styles.searchButton} 
+            onPress={handleShowBookingCard}
+            disabled={isLoadingLocation}
+          >
+            <Ionicons name="search" size={20} color="#666" />
+            <Text style={styles.searchButtonText}>
+              {isLoadingLocation 
+                ? 'Getting location...' 
+                : isLoadingDrivers 
+                ? 'Loading drivers...' 
+                : 'Where to?'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Location & Refresh Buttons */}
+      <View style={styles.locationButtonContainer}>
+        <TouchableOpacity 
+          style={[styles.locationButton, styles.refreshButton]} 
+          onPress={refreshDrivers}
+          disabled={isLoadingDrivers}
+        >
+          <Ionicons 
+            name={isLoadingDrivers ? "refresh" : "car"} 
+            size={20} 
+            color={isLoadingDrivers ? "#999" : "#007AFF"} 
           />
-        </View>
-      </View>
-
-      {/* Map */}
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
-          onPress={handleMapPress}
-          showsUserLocation={true}
-          showsMyLocationButton={false}
-          initialRegion={{
-            latitude: 37.78825,
-            longitude: -122.4324,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-        >
-          {pickupLocation && (
-            <Marker
-              coordinate={pickupLocation}
-              title="Pickup Location"
-              pinColor="#00FF00"
-            />
-          )}
-          {destination && (
-            <Marker
-              coordinate={destination}
-              title="Destination"
-              pinColor="#FF0000"
-            />
-          )}
-        </MapView>
-
-        {/* Current Location Button */}
-        <TouchableOpacity
-          style={styles.currentLocationButton}
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.locationButton} 
           onPress={getCurrentLocation}
+          disabled={isLoadingLocation}
         >
-          <Ionicons name="locate" size={24} color="#007AFF" />
+          <Ionicons 
+            name="locate" 
+            size={24} 
+            color={isLoadingLocation ? "#999" : "#007AFF"} 
+          />
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Panel */}
-      <View style={styles.bottomPanel}>
-        {destination ? (
-          <View>
-            <View style={styles.rideInfo}>
-              <Text style={styles.rideInfoTitle}>Your Trip</Text>
-              <View style={styles.rideDetails}>
-                <Text style={styles.rideTime}>{estimatedTime} min</Text>
-                <Text style={styles.rideFare}>${estimatedFare.toFixed(2)}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.resetButton} onPress={resetSelection}>
-                <Text style={styles.resetButtonText}>Reset</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.bookButton} onPress={handleBookRide}>
-                <Text style={styles.bookButtonText}>Book Ride</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.quickActions}>
-            <Text style={styles.quickActionsTitle}>Quick Actions</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.actionsList}>
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="home" size={24} color="#007AFF" />
-                <Text style={styles.actionText}>Home</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="briefcase" size={24} color="#007AFF" />
-                <Text style={styles.actionText}>Work</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="location" size={24} color="#007AFF" />
-                <Text style={styles.actionText}>Saved</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        )}
-      </View>
-
-      {/* Booking Modal */}
-      <Modal
-        visible={showBookingModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowBookingModal(false)}>
-              <Ionicons name="close" size={24} color="#1A1A1A" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Choose Your Ride</Text>
-            <View style={{ width: 24 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {rideTypes.map((ride) => (
-              <TouchableOpacity
-                key={ride.id}
-                style={[
-                  styles.rideTypeCard,
-                  selectedRideType === ride.id && styles.rideTypeCardSelected,
-                ]}
-                onPress={() => setSelectedRideType(ride.id)}
-              >
-                <View style={styles.rideTypeLeft}>
-                  <Ionicons name={ride.icon as any} size={24} color="#1A1A1A" />
-                  <View style={styles.rideTypeInfo}>
-                    <Text style={styles.rideTypeName}>{ride.name}</Text>
-                    <Text style={styles.rideTypeTime}>{ride.time}</Text>
-                  </View>
-                </View>
-                <Text style={styles.rideTypePrice}>
-                  ${(estimatedFare * ride.price).toFixed(2)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            <View style={styles.paymentSection}>
-              <Text style={styles.sectionTitle}>Payment Method</Text>
-              <TouchableOpacity style={styles.paymentCard}>
-                <Ionicons name="card" size={24} color="#1A1A1A" />
-                <Text style={styles.paymentText}>**** 1234</Text>
-                <Ionicons name="chevron-forward" size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity style={styles.confirmButton} onPress={confirmBooking}>
-              <Text style={styles.confirmButtonText}>Confirm Booking</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      {/* Ride Booking Card */}
+      <RideBookingCard
+        isVisible={showBookingCard}
+        onClose={handleCloseBookingCard}
+        onPickupSelect={handlePickupSelect}
+        onDestinationSelect={handleDestinationSelect}
+        onRideBooking={handleRideBooking}
+        pickupLocation={pickupLocation || undefined}
+        destinationLocation={destinationLocation || undefined}
+        pickupAddress={pickupAddress}
+        destinationAddress={destinationAddress}
+        currentLocation={currentLocation || undefined}
+        availableDrivers={nearbyDrivers}
+        isLoadingDrivers={isLoadingDrivers}
+      />
     </SafeAreaView>
   );
 };
@@ -317,66 +538,24 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF',
   },
-  header: {
+  topControls: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: 14,
-    color: '#666666',
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
+    zIndex: 100,
   },
   menuButton: {
-    padding: 8,
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#1A1A1A',
-  },
-  mapContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  map: {
-    width: '100%',
-    height: '100%',
-  },
-  currentLocationButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
-    width: 50,
-    height: 50,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -385,197 +564,70 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  bottomPanel: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
+  },
+  searchButtonContainer: {
+    position: 'absolute',
+    top: 120,
+    left: 20,
+    right: 20,
+    zIndex: 100,
+  },
+  searchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     elevation: 5,
   },
-  rideInfo: {
-    marginBottom: 20,
-  },
-  rideInfoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-    marginBottom: 12,
-  },
-  rideDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rideTime: {
+  searchButtonText: {
+    flex: 1,
     fontSize: 16,
-    color: '#666666',
+    color: '#666',
+    marginLeft: 12,
   },
-  rideFare: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#007AFF',
-  },
-  actionButtons: {
-    flexDirection: 'row',
+  locationButtonContainer: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    zIndex: 100,
+    flexDirection: 'column',
     gap: 12,
   },
-  resetButton: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    paddingVertical: 16,
+  locationButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  resetButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666666',
-  },
-  bookButton: {
-    flex: 2,
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  bookButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  quickActions: {
-    marginBottom: 10,
-  },
-  quickActionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-    marginBottom: 16,
-  },
-  actionsList: {
-    flexDirection: 'row',
-  },
-  actionCard: {
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  actionText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#666666',
-    fontWeight: '500',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  rideTypeCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    marginVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#F8F9FA',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  rideTypeCardSelected: {
-    backgroundColor: '#F0F8FF',
-    borderColor: '#007AFF',
-  },
-  rideTypeLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  rideTypeInfo: {
-    marginLeft: 12,
-  },
-  rideTypeName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-  rideTypeTime: {
-    fontSize: 14,
-    color: '#666666',
-  },
-  rideTypePrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-  },
-  paymentSection: {
-    marginTop: 24,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 12,
-  },
-  paymentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  paymentText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#1A1A1A',
-  },
-  confirmButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 40,
-  },
-  confirmButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  refreshButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
 });
 

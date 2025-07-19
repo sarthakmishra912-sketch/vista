@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   verifyButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#22C55E',
     borderRadius: 12,
     paddingVertical: 16,
     justifyContent: 'center',

@@ -10,19 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-
-interface RideHistoryItem {
-  id: string;
-  date: string;
-  from: string;
-  to: string;
-  fare: number;
-  distance: string;
-  duration: string;
-  status: 'completed' | 'cancelled';
-  rating?: number;
-  rideType: string;
-}
+import { rideHistoryService, RideHistoryItem } from '../../services/rideHistoryService';
 
 const HistoryScreen: React.FC = () => {
   const { user } = useAuth();
@@ -30,76 +18,47 @@ const HistoryScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'completed' | 'cancelled'>('all');
 
-  // Mock data - in a real app, this would come from Supabase
-  const mockRides: RideHistoryItem[] = [
-    {
-      id: '1',
-      date: '2024-01-15',
-      from: 'Home',
-      to: 'Downtown Mall',
-      fare: 15.50,
-      distance: '8.2 km',
-      duration: '18 min',
-      status: 'completed',
-      rating: 5,
-      rideType: 'Economy',
-    },
-    {
-      id: '2',
-      date: '2024-01-14',
-      from: 'Office Building',
-      to: 'Airport Terminal 1',
-      fare: 45.00,
-      distance: '32.1 km',
-      duration: '42 min',
-      status: 'completed',
-      rating: 4,
-      rideType: 'Comfort',
-    },
-    {
-      id: '3',
-      date: '2024-01-13',
-      from: 'Restaurant District',
-      to: 'Home',
-      fare: 12.25,
-      distance: '6.5 km',
-      duration: '15 min',
-      status: 'completed',
-      rating: 5,
-      rideType: 'Economy',
-    },
-    {
-      id: '4',
-      date: '2024-01-12',
-      from: 'Shopping Center',
-      to: 'Friend\'s House',
-      fare: 8.75,
-      distance: '4.2 km',
-      duration: '12 min',
-      status: 'cancelled',
-      rideType: 'Economy',
-    },
-    {
-      id: '5',
-      date: '2024-01-10',
-      from: 'Hotel',
-      to: 'Conference Center',
-      fare: 28.50,
-      distance: '15.8 km',
-      duration: '28 min',
-      status: 'completed',
-      rating: 4,
-      rideType: 'Premium',
-    },
-  ];
+  useEffect(() => {
+    initializeAndLoadData();
+  }, [user]);
 
   useEffect(() => {
-    loadRideHistory();
-  }, []);
+    if (user) {
+      loadRideHistory();
+    }
+  }, [filter, user]);
+
+  const initializeAndLoadData = async () => {
+    try {
+      // Initialize ride history tables
+      await rideHistoryService.initializeTables();
+      
+      if (user) {
+        loadRideHistory();
+      }
+    } catch (error) {
+      console.error('❌ Error initializing ride history:', error);
+    }
+  };
 
   const loadRideHistory = async () => {
-    // In a real app, fetch from Supabase
-    setRides(mockRides);
+    if (!user) {
+      console.log('⚠️ No user found, cannot load ride history');
+      return;
+    }
+
+    try {
+      console.log(`🔍 Loading ride history for user ${user.id} with filter: ${filter}`);
+      const rideHistory = await rideHistoryService.getUserRideHistory(user.id, filter);
+      setRides(rideHistory);
+      
+      if (rideHistory.length === 0) {
+        console.log('📝 No ride history found - user may need to take some rides first');
+      }
+    } catch (error) {
+      console.error('❌ Error loading ride history:', error);
+      setRides([]);
+    }
   };
 
   const onRefresh = async () => {
@@ -328,10 +287,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },
-  filterButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
+      filterButtonActive: {
+      backgroundColor: '#22C55E',
+      borderColor: '#22C55E',
+    },
   filterButtonText: {
     fontSize: 14,
     fontWeight: '500',

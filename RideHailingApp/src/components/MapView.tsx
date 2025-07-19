@@ -48,9 +48,10 @@ interface MapViewProps {
   onRegionChange?: (region: Region) => void;
   showUserLocation?: boolean;
   followUserLocation?: boolean;
-  mapStyle?: 'standard' | 'satellite' | 'hybrid' | 'terrain';
   showTraffic?: boolean;
   searchRadius?: number;
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>;
+  mapStyle?: 'standard' | 'satellite' | 'hybrid' | 'terrain';
   rideInProgress?: boolean;
   driverLocation?: LocationCoordinate;
 }
@@ -71,6 +72,7 @@ const CustomMapView: React.FC<MapViewProps> = ({
   mapStyle = 'standard',
   showTraffic = true,
   searchRadius = 5000,
+  routeCoordinates,
   rideInProgress = false,
   driverLocation
 }) => {
@@ -362,7 +364,7 @@ const CustomMapView: React.FC<MapViewProps> = ({
         {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor="#007AFF"
+            strokeColor="#22C55E"
             strokeWidth={4}
             lineDashPattern={[0]}
           />
