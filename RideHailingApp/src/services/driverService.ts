@@ -406,6 +406,95 @@ class DriverService {
 
 
   /**
+   * Update driver status (available, busy, offline, on_ride)
+   */
+  async updateDriverStatus(driverId: string, status: Driver['status']): Promise<void> {
+    try {
+      const query = `
+        UPDATE drivers 
+        SET status = $1, updated_at = NOW()
+        WHERE id = $2
+      `;
+      
+      await database.query(query, [status, driverId]);
+      console.log(`✅ Updated driver ${driverId} status to ${status}`);
+      
+    } catch (error) {
+      console.error('Error updating driver status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get driver by ID with full details
+   */
+  async getDriverById(driverId: string): Promise<Driver | null> {
+    try {
+      const query = `
+        SELECT 
+          d.id,
+          d.name,
+          d.phone,
+          d.email,
+          d.rating,
+          d.status,
+          d.total_rides,
+          d.profile_photo,
+          d.is_verified,
+          v.type as vehicle_type,
+          v.color as vehicle_color,
+          v.plate_number,
+          v.model as vehicle_model,
+          v.year as vehicle_year,
+          dl.latitude,
+          dl.longitude,
+          dl.heading,
+          array_agg(drt.ride_type) as ride_types
+        FROM drivers d
+        LEFT JOIN vehicles v ON d.id = v.driver_id
+        LEFT JOIN driver_locations dl ON d.id = dl.driver_id
+        LEFT JOIN driver_ride_types drt ON d.id = drt.driver_id
+        WHERE d.id = $1
+        GROUP BY d.id, v.id, dl.driver_id, dl.latitude, dl.longitude, dl.heading
+      `;
+
+      const result = await database.query(query, [driverId]);
+      
+      if (!result.rows || result.rows.length === 0) {
+        return null;
+      }
+
+      const row = result.rows[0];
+      
+      return {
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        lat: row.latitude || 0,
+        lng: row.longitude || 0,
+        heading: row.heading,
+        vehicle: row.vehicle_type ? {
+          type: row.vehicle_type,
+          color: row.vehicle_color,
+          plateNumber: row.plate_number,
+          model: row.vehicle_model,
+          year: row.vehicle_year,
+        } : undefined,
+        rating: parseFloat(row.rating || '0'),
+        status: row.status,
+        totalRides: parseInt(row.total_rides || '0'),
+        profilePhoto: row.profile_photo,
+        isVerified: row.is_verified,
+        rideType: row.ride_types ? row.ride_types.filter(Boolean) : [],
+      };
+
+    } catch (error) {
+      console.error('Error getting driver by ID:', error);
+      return null;
+    }
+  }
+
+  /**
    * Create tables if they don't exist (for development)
    */
   async initializeTables(): Promise<void> {
