@@ -54,6 +54,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
   const [cardAnimation] = useState(new Animated.Value(0));
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [showRideAcceptedCard, setShowRideAcceptedCard] = useState(false);
+  const [destinationETA, setDestinationETA] = useState<number>(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -194,6 +195,12 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
 
         if (distanceToDestination < 50) { // Within 50 meters
           handleRideCompleted();
+        } else {
+          // Update destination ETA
+          const route = await googleMapsService.getDirections(newLocation, rideDetails.destinationLocation);
+          if (route) {
+            setDestinationETA(Math.round(route.duration.value / 60));
+          }
         }
       }
 
@@ -264,8 +271,8 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       clearInterval(intervalRef.current);
     }
 
-    // Hide the ride accepted card since driver has arrived
-    setShowRideAcceptedCard(false);
+    // Keep the ride accepted card visible - don't hide it!
+    // The card will show OTP until ride starts
 
     // Show arrival notification
     Alert.alert(
@@ -301,6 +308,15 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       // Calculate route to destination
       await calculateRouteToDestination();
       setActiveRoute('destination');
+
+      // Calculate initial destination ETA
+      const route = await googleMapsService.getDirections(
+        rideDetails.pickupLocation,
+        rideDetails.destinationLocation
+      );
+      if (route) {
+        setDestinationETA(Math.round(route.duration.value / 60));
+      }
 
       // Resume location tracking towards destination
       startDestinationTracking();
@@ -658,6 +674,8 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
         }}
         otp={rideOTP}
         estimatedArrival={estimatedArrival}
+        estimatedDestinationArrival={destinationETA}
+        isRideStarted={rideStatus === 'in_progress'}
         onCall={() => {
           console.log('📞 User initiated call to driver');
           // Call functionality handled by the card component

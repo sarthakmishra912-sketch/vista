@@ -21,7 +21,9 @@ interface RideAcceptedCardProps {
   driver: Driver | null;
   ride: Ride | null;
   otp: string;
-  estimatedArrival: number; // in minutes
+  estimatedArrival: number; // in minutes to pickup
+  estimatedDestinationArrival?: number; // in minutes to destination
+  isRideStarted: boolean; // determines if we show OTP or destination ETA
   onCall: () => void;
   onMessage: () => void;
   onCancel: () => void;
@@ -34,6 +36,8 @@ const RideAcceptedCard: React.FC<RideAcceptedCardProps> = ({
   ride,
   otp,
   estimatedArrival,
+  estimatedDestinationArrival,
+  isRideStarted,
   onCall,
   onMessage,
   onCancel,
@@ -225,10 +229,14 @@ const RideAcceptedCard: React.FC<RideAcceptedCardProps> = ({
           {/* Header with Status */}
           <View style={styles.header}>
             <View style={styles.statusContainer}>
-              <View style={[styles.statusDot, { backgroundColor: '#22C55E' }]} />
-              <Text style={styles.statusText}>Driver Assigned</Text>
+              <View style={[styles.statusDot, { backgroundColor: isRideStarted ? '#3B82F6' : '#22C55E' }]} />
+              <Text style={styles.statusText}>
+                {isRideStarted ? 'Ride in Progress' : 'Driver Assigned'}
+              </Text>
             </View>
-            <Text style={styles.etaText}>{formatETA(estimatedArrival)}</Text>
+            <Text style={styles.etaText}>
+              {isRideStarted ? 'En route' : formatETA(estimatedArrival)}
+            </Text>
           </View>
 
           {/* Driver Information */}
@@ -266,7 +274,7 @@ const RideAcceptedCard: React.FC<RideAcceptedCardProps> = ({
              </View>
           </View>
 
-          {/* OTP Section */}
+          {/* OTP Section OR Destination ETA */}
           <Animated.View 
             style={[
               styles.otpSection,
@@ -275,12 +283,26 @@ const RideAcceptedCard: React.FC<RideAcceptedCardProps> = ({
               }
             ]}
           >
-            <View style={styles.otpContainer}>
-              <Text style={styles.otpLabel}>Share this OTP with driver</Text>
-              <View style={styles.otpBox}>
-                <Text style={styles.otpText}>{otp}</Text>
+            {!isRideStarted ? (
+              // Show OTP before ride starts
+              <View style={styles.otpContainer}>
+                <Text style={styles.otpLabel}>Share this OTP with driver</Text>
+                <View style={styles.otpBox}>
+                  <Text style={styles.otpText}>{otp}</Text>
+                </View>
               </View>
-            </View>
+            ) : (
+              // Show destination ETA after ride starts
+              <View style={styles.destinationEtaContainer}>
+                <Text style={styles.destinationEtaLabel}>Arriving at destination</Text>
+                <View style={styles.destinationEtaBox}>
+                  <Ionicons name="location" size={20} color="#FFF" />
+                  <Text style={styles.destinationEtaText}>
+                    {formatETA(estimatedDestinationArrival || 0)}
+                  </Text>
+                </View>
+              </View>
+            )}
           </Animated.View>
 
           {/* Action Buttons */}
@@ -519,6 +541,33 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFF',
     letterSpacing: 3,
+  },
+  destinationEtaContainer: {
+    alignItems: 'center',
+  },
+  destinationEtaLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  destinationEtaBox: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    gap: 8,
+  },
+  destinationEtaText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFF',
   },
   actionButtons: {
     flexDirection: 'row',
