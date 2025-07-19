@@ -1,12 +1,25 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase, getCurrentUser } from '../services/supabase';
+import { User } from '../types';
+import { 
+  getCurrentUser, 
+  requestOTP, 
+  verifyOTPAndSignIn, 
+  resendOTP, 
+  getOTPSessionStatus,
+  signOut as authSignOut 
+} from '../services/authService';
+import { webSocketService } from '../services/websocketService';
+import { notificationService } from '../services/notificationService';
+import { paymentService } from '../services/paymentService';
+import { OTPResult, VerifyOTPResult } from '../services/otpService';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, userData: any) => Promise<any>;
+  requestOTP: (phone: string) => Promise<OTPResult>;
+  verifyOTP: (sessionId: string, otp: string, userData?: any) => Promise<VerifyOTPResult>;
+  resendOTP: (sessionId: string) => Promise<OTPResult>;
+  getSessionStatus: (sessionId: string) => Promise<any>;
   signOut: () => Promise<void>;
 }
 
@@ -31,54 +44,120 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const currentUser = await getCurrentUser();
-      setUser(currentUser);
-      setLoading(false);
+      try {
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+        
+        // Initialize services if user is authenticated
+        if (currentUser) {
+          // Initialize push notifications
+          const pushToken = await notificationService.initialize();
+          if (pushToken) {
+            await notificationService.savePushToken(currentUser.id);
+          }
+
+          // Initialize payment tables
+          await paymentService.initializePaymentTables();
+          
+          // Connect to WebSocket
+          await webSocketService.connect();
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     getInitialSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
+    // Cleanup services on unmount
     return () => {
-      subscription.unsubscribe();
+      webSocketService.disconnect();
+      notificationService.cleanup();
     };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { data, error };
+  const handleRequestOTP = async (phone: string): Promise<OTPResult> => {
+    try {
+      setLoading(true);
+      return await requestOTP(phone);
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const signUp = async (email: string, password: string, userData: any) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: userData,
-      },
-    });
-    return { data, error };
+  const handleVerifyOTP = async (sessionId: string, otp: string, userData?: any): Promise<VerifyOTPResult> => {
+    try {
+      setLoading(true);
+      const result = await verifyOTPAndSignIn(sessionId, otp, userData);
+      
+      if (result.success && result.user) {
+        setUser(result.user);
+        
+        // Initialize services after successful verification
+        const pushToken = await notificationService.initialize();
+        if (pushToken) {
+          await notificationService.savePushToken(result.user.id);
+        }
+        
+        await webSocketService.connect();
+      }
+      
+      return result;
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async (sessionId: string): Promise<OTPResult> => {
+    try {
+      return await resendOTP(sessionId);
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const handleGetSessionStatus = async (sessionId: string) => {
+    try {
+      return await getOTPSessionStatus(sessionId);
+    } catch (error: any) {
+      return { valid: false, error: error.message };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      setLoading(true);
+      
+      // Remove push token and cleanup services before signing out
+      if (user) {
+        await notificationService.removePushToken(user.id);
+      }
+      
+      webSocketService.disconnect();
+      notificationService.cleanup();
+      
+      await authSignOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Error during sign out:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const value = {
+  const value: AuthContextType = {
     user,
     loading,
-    signIn,
-    signUp,
+    requestOTP: handleRequestOTP,
+    verifyOTP: handleVerifyOTP,
+    resendOTP: handleResendOTP,
+    getSessionStatus: handleGetSessionStatus,
     signOut,
   };
 
