@@ -16,10 +16,13 @@ import { driverService, Driver } from '../../services/driverService';
 import { dataSeeder } from '../../services/dataSeeder';
 import { rideRequestService } from '../../services/rideRequestService';
 import { useAuth } from '../../context/AuthContext';
+import { useRide } from '../../context/RideContext';
+import RideInProgressSnackBar from '../../components/RideInProgressSnackBar';
 import * as Location from 'expo-location';
 
 const HomeScreen: React.FC = ({ navigation }: any) => {
   const { user } = useAuth();
+  const { activeRide } = useRide();
   
   // State for locations
   const [currentLocation, setCurrentLocation] = useState<LocationCoordinate | null>(null);
@@ -379,6 +382,35 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
      setTimeout(checkStatus, 1000);
    };
 
+  /**
+   * Navigate to active ride when snack bar is tapped
+   */
+  const handleNavigateToActiveRide = () => {
+    if (activeRide) {
+      console.log('🚗 Navigating to active ride:', activeRide.rideId);
+      
+      // Navigate to ride tracking screen with active ride data
+      navigation.navigate('RideTracking', {
+        rideDetails: {
+          rideId: activeRide.rideId,
+          rideType: 'economy', // Default or get from activeRide if available
+          pickupLocation: { lat: 0, lng: 0 }, // These would be from activeRide
+          destinationLocation: { lat: 0, lng: 0 }, // These would be from activeRide  
+          pickupAddress: activeRide.pickupAddress,
+          destinationAddress: activeRide.destinationAddress,
+          assignedDriver: {
+            id: 'active-driver',
+            name: activeRide.driverName,
+            vehicle: {
+              plateNumber: activeRide.vehicleInfo
+            }
+          },
+          fare: 0 // This would be calculated
+        }
+      });
+    }
+  };
+
   const handleDriverPress = (driver: Driver) => {
     const vehicleInfo = driver.vehicle 
       ? `${driver.vehicle.type} • ${driver.vehicle.color}\n${driver.vehicle.plateNumber}`
@@ -530,6 +562,11 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
         currentLocation={currentLocation || undefined}
         availableDrivers={nearbyDrivers}
         isLoadingDrivers={isLoadingDrivers}
+      />
+
+      {/* Ride In Progress Snack Bar */}
+      <RideInProgressSnackBar
+        onPress={handleNavigateToActiveRide}
       />
     </SafeAreaView>
   );
