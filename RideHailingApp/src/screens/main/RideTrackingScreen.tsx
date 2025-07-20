@@ -16,6 +16,7 @@ import CustomMapView from '../../components/MapView';
 import { googleMapsService, LocationCoordinate } from '../../services/mapsService';
 import { driverService, Driver } from '../../services/driverService';
 import { useAuth } from '../../context/AuthContext';
+import { useRide } from '../../context/RideContext';
 import * as Location from 'expo-location';
 import RideAcceptedCard from '../../components/RideAcceptedCard';
 
@@ -34,6 +35,7 @@ type RideStatus = 'requested' | 'accepted' | 'driver_arriving' | 'driver_arrived
 
 const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
   const { user } = useAuth();
+  const { setActiveRide, updateRideStatus, clearActiveRide } = useRide();
   const { rideDetails } = route.params as { rideDetails: RideDetails };
 
   // Core state
@@ -80,6 +82,17 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
     try {
       console.log('🚗 Initializing ride tracking for:', rideDetails.rideId);
       
+      // Set active ride in context
+      await setActiveRide({
+        rideId: rideDetails.rideId,
+        status: 'requested',
+        driverName: rideDetails.assignedDriver?.name || 'Driver',
+        vehicleInfo: rideDetails.assignedDriver?.vehicle?.plateNumber || 'Vehicle',
+        pickupAddress: rideDetails.pickupAddress,
+        destinationAddress: rideDetails.destinationAddress,
+        startedAt: new Date().toISOString(),
+      });
+      
       // Simulate driver acceptance after 3 seconds
       setTimeout(() => {
         simulateDriverAcceptance();
@@ -113,6 +126,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
     try {
       console.log('✅ Driver accepted the ride');
       setRideStatus('accepted');
+      await updateRideStatus('accepted');
       
       // IMMEDIATELY calculate and show route to pickup in user's app
       console.log('🗺️ Calculating route to pickup for user to see...');
@@ -123,6 +137,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
 
       // Set status to driver arriving (route now visible to user)
       setRideStatus('driver_arriving');
+      await updateRideStatus('driver_arriving');
 
     } catch (error) {
       console.error('Error in driver acceptance:', error);
@@ -262,8 +277,9 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
   /**
    * Handle driver arrived at pickup location
    */
-  const handleDriverArrivedAtPickup = () => {
+  const handleDriverArrivedAtPickup = async () => {
     setRideStatus('driver_arrived');
+    await updateRideStatus('driver_arrived');
     setActiveRoute(null);
 
     // Stop location updates temporarily
@@ -304,6 +320,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       console.log('✅ Driver entered correct OTP, starting ride');
       setShowOTPModal(false);
       setRideStatus('in_progress');
+      await updateRideStatus('in_progress');
 
       // Calculate route to destination
       await calculateRouteToDestination();
@@ -349,14 +366,18 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
   /**
    * Handle ride completion
    */
-  const handleRideCompleted = () => {
+  const handleRideCompleted = async () => {
     setRideStatus('completed');
+    await updateRideStatus('completed');
     setActiveRoute(null);
 
     // Stop location tracking
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
+
+    // Clear active ride from context
+    await clearActiveRide();
 
     Alert.alert(
       '🎉 Ride Completed!',
@@ -415,8 +436,11 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
         {
           text: 'Yes, Cancel',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             setRideStatus('cancelled');
+            await updateRideStatus('cancelled');
+            await clearActiveRide();
+            
             if (intervalRef.current) {
               clearInterval(intervalRef.current);
             }
