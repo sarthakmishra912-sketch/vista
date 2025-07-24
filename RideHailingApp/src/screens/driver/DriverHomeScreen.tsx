@@ -33,7 +33,11 @@ interface RideRequest {
   rideType: string;
 }
 
-const DriverHomeScreen: React.FC = ({ navigation }: any) => {
+interface DriverHomeScreenProps {
+  navigation?: any;
+}
+
+const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   
   // Driver status and location
@@ -289,10 +293,15 @@ const DriverHomeScreen: React.FC = ({ navigation }: any) => {
       {/* Map */}
       <View style={styles.mapContainer}>
         <CustomMapView
-          currentLocation={currentLocation}
+          currentUserLocation={currentLocation || undefined}
           drivers={[]} // Don't show other drivers to this driver
-          onLocationUpdate={setCurrentLocation}
-          showCurrentLocation={true}
+          onRegionChange={(region) => {
+            setCurrentLocation({
+              lat: region.latitude,
+              lng: region.longitude
+            });
+          }}
+          showUserLocation={true}
         />
         
         {/* Online/Offline Status Overlay */}

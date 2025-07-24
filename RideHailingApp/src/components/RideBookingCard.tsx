@@ -4,12 +4,12 @@ import {
   Text,
   StyleSheet,
   Animated,
-  PanGestureHandler,
   TouchableOpacity,
   ScrollView,
   Dimensions,
   Alert,
 } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import AddressSearchInput from './AddressSearchInput';
 import { googleMapsService, LocationCoordinate, FareEstimate } from '../services/mapsService';

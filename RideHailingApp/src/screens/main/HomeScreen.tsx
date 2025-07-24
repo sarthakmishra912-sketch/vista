@@ -20,7 +20,11 @@ import { useRide } from '../../context/RideContext';
 import RideInProgressSnackBar from '../../components/RideInProgressSnackBar';
 import * as Location from 'expo-location';
 
-const HomeScreen: React.FC = ({ navigation }: any) => {
+interface HomeScreenProps {
+  navigation?: any;
+}
+
+const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { activeRide } = useRide();
   

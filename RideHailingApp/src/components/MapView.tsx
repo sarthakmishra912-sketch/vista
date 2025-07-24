@@ -271,7 +271,7 @@ const CustomMapView: React.FC<MapViewProps> = ({
         showsScale={Platform.OS === 'android'}
         showsBuildings={true}
         showsIndoors={true}
-        showsTraffic={false}
+
         rotateEnabled={true}
         pitchEnabled={true}
         scrollEnabled={true}

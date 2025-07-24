@@ -20,6 +20,8 @@ interface AuthContextType {
   verifyOTP: (sessionId: string, otp: string, userData?: any) => Promise<VerifyOTPResult>;
   resendOTP: (sessionId: string) => Promise<OTPResult>;
   getSessionStatus: (sessionId: string) => Promise<any>;
+  signIn: (phone: string, password?: string) => Promise<any>;
+  signUp: (userData: any) => Promise<any>;
   signOut: () => Promise<void>;
 }
 
@@ -151,6 +153,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Alias methods for backward compatibility
+  const signIn = async (phone: string, password?: string) => {
+    // For OTP-based authentication, we'll use requestOTP
+    return await handleRequestOTP(phone);
+  };
+
+  const signUp = async (userData: any) => {
+    // For new user registration, also start with OTP
+    return await handleRequestOTP(userData.phone);
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -158,6 +171,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     verifyOTP: handleVerifyOTP,
     resendOTP: handleResendOTP,
     getSessionStatus: handleGetSessionStatus,
+    signIn,
+    signUp,
     signOut,
   };
 

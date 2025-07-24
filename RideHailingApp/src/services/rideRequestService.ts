@@ -1,7 +1,7 @@
 import { database } from './database';
 import { driverService, Driver } from './driverService';
 import { LocationCoordinate } from './mapsService';
-import { rideService } from './rideService';
+import * as rideService from './rideService';
 
 export interface RideRequest {
   id: string;
