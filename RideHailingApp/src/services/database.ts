@@ -179,3 +179,13 @@ export const testConnection = async (): Promise<boolean> => {
 export const closePool = async () => {
   await pool.end();
 };
+
+// Export database object for backward compatibility
+export const database = {
+  query,
+  transaction,
+  pool,
+  initializeDatabase,
+  testConnection,
+  closePool
+};

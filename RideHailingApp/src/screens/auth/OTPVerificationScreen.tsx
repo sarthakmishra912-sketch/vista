@@ -260,7 +260,9 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({ route, na
           {otp.map((digit, index) => (
             <TextInput
               key={index}
-              ref={(ref) => (inputRefs.current[index] = ref!)}
+              ref={(ref) => {
+                if (ref) inputRefs.current[index] = ref;
+              }}
               style={[
                 styles.otpInput,
                 digit ? styles.otpInputFilled : null,

@@ -41,9 +41,6 @@
         "googleMaps": {
           "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
         }
-      },
-      "meta": {
-        "com.google.android.geo.API_KEY": "YOUR_GOOGLE_MAPS_API_KEY"
       }
     },
     "web": {

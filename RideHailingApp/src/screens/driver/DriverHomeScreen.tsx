@@ -16,7 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import CustomMapView from '../../components/MapView';
 import * as Location from 'expo-location';
 import { LocationCoordinate } from '../../services/mapsService';
-import { driverService } from '../../services/driverService';
+import { driverService } from '../../services/driverService.mobile';
 import { rideRequestService } from '../../services/rideRequestService';
 
 const { width } = Dimensions.get('window');
@@ -33,7 +33,11 @@ interface RideRequest {
   rideType: string;
 }
 
-const DriverHomeScreen: React.FC = ({ navigation }: any) => {
+interface DriverHomeScreenProps {
+  navigation?: any;
+}
+
+const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   
   // Driver status and location
@@ -95,8 +99,7 @@ const DriverHomeScreen: React.FC = ({ navigation }: any) => {
       await driverService.updateDriverLocation(
         user.id,
         currentLocation,
-        0, // heading
-        0  // speed
+        0 // heading
       );
     } catch (error) {
       console.error('Error updating driver location:', error);
@@ -289,10 +292,15 @@ const DriverHomeScreen: React.FC = ({ navigation }: any) => {
       {/* Map */}
       <View style={styles.mapContainer}>
         <CustomMapView
-          currentLocation={currentLocation}
+          currentUserLocation={currentLocation || undefined}
           drivers={[]} // Don't show other drivers to this driver
-          onLocationUpdate={setCurrentLocation}
-          showCurrentLocation={true}
+          onRegionChange={(region) => {
+            setCurrentLocation({
+              lat: region.latitude,
+              lng: region.longitude
+            });
+          }}
+          showUserLocation={true}
         />
         
         {/* Online/Offline Status Overlay */}
