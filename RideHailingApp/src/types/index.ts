@@ -5,9 +5,14 @@ export interface User {
   phone?: string;
   name: string;
   avatar_url?: string;
-  user_type: 'rider' | 'driver';
+  user_type: 'rider' | 'driver' | 'both';
   created_at: string;
   updated_at: string;
+  user_metadata?: {
+    avatar_url?: string;
+    name?: string;
+    user_type?: string;
+  };
 }
 
 // Driver specific data
@@ -19,6 +24,8 @@ export interface Driver extends User {
   current_location?: Location;
   rating: number;
   total_rides: number;
+  status: 'available' | 'busy' | 'offline' | 'on_ride';
+  avatar?: string;
 }
 
 // Vehicle information
@@ -65,6 +72,7 @@ export type RideStatus =
   | 'requested' 
   | 'accepted' 
   | 'arriving' 
+  | 'driver_arriving'
   | 'in_progress' 
   | 'completed' 
   | 'cancelled';
@@ -74,6 +82,8 @@ export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
   Profile: undefined;
+  Login: undefined;
+  SignUp: undefined;
   RideDetails: { rideId: string };
 };
 

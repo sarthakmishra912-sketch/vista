@@ -14,9 +14,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import CustomMapView from '../../components/MapView';
 import { googleMapsService, LocationCoordinate } from '../../services/mapsService';
-import { driverService, Driver } from '../../services/driverService';
+import { driverService, Driver as MobileDriver } from '../../services/driverService.mobile';
 import { useAuth } from '../../context/AuthContext';
 import { useRide } from '../../context/RideContext';
+import { RideStatus } from '../../types';
 import * as Location from 'expo-location';
 import RideAcceptedCard from '../../components/RideAcceptedCard';
 
@@ -27,11 +28,11 @@ interface RideDetails {
   destinationLocation: LocationCoordinate;
   pickupAddress: string;
   destinationAddress: string;
-  assignedDriver?: Driver;
+  assignedDriver?: MobileDriver;
   fare: number;
 }
 
-type RideStatus = 'requested' | 'accepted' | 'driver_arriving' | 'driver_arrived' | 'in_progress' | 'completed' | 'cancelled';
+
 
 const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
   const { user } = useAuth();
@@ -87,7 +88,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
         rideId: rideDetails.rideId,
         status: 'requested',
         driverName: rideDetails.assignedDriver?.name || 'Driver',
-        vehicleInfo: rideDetails.assignedDriver?.vehicle?.plateNumber || 'Vehicle',
+        vehicleInfo: rideDetails.assignedDriver?.vehicle_info?.plateNumber || 'Vehicle',
         pickupAddress: rideDetails.pickupAddress,
         destinationAddress: rideDetails.destinationAddress,
         startedAt: new Date().toISOString(),
@@ -185,12 +186,14 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
 
       // Check if driver arrived at pickup
       if (activeRoute === 'pickup') {
-        const distanceToPickup = await googleMapsService.calculateDistance(
-          newLocation,
-          rideDetails.pickupLocation
+        const distanceToPickup = googleMapsService.calculateDistance(
+          newLocation.lat,
+          newLocation.lng,
+          rideDetails.pickupLocation.lat,
+          rideDetails.pickupLocation.lng
         );
 
-        if (distanceToPickup < 50) { // Within 50 meters
+                  if (distanceToPickup * 1000 < 50) { // Within 50 meters (convert km to meters)
           handleDriverArrivedAtPickup();
         } else {
           // Update ETA
@@ -203,12 +206,14 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
 
       // Check if arrived at destination
       if (activeRoute === 'destination') {
-        const distanceToDestination = await googleMapsService.calculateDistance(
-          newLocation,
-          rideDetails.destinationLocation
+        const distanceToDestination = googleMapsService.calculateDistance(
+          newLocation.lat,
+          newLocation.lng,
+          rideDetails.destinationLocation.lat,
+          rideDetails.destinationLocation.lng
         );
 
-        if (distanceToDestination < 50) { // Within 50 meters
+        if (distanceToDestination * 1000 < 50) { // Within 50 meters (convert km to meters)
           handleRideCompleted();
         } else {
           // Update destination ETA
@@ -278,8 +283,8 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
    * Handle driver arrived at pickup location
    */
   const handleDriverArrivedAtPickup = async () => {
-    setRideStatus('driver_arrived');
-    await updateRideStatus('driver_arrived');
+    setRideStatus('driver_arriving');
+    await updateRideStatus('driver_arriving');
     setActiveRoute(null);
 
     // Stop location updates temporarily
@@ -293,7 +298,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
     // Show arrival notification
     Alert.alert(
       '🎉 Your Ride Has Arrived!',
-      `${rideDetails.assignedDriver?.name || 'Your driver'} is at your pickup location.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle?.plateNumber}\n\n🔐 Please share your OTP with the driver: ${rideOTP}`,
+      `${rideDetails.assignedDriver?.name || 'Your driver'} is at your pickup location.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle_info?.plateNumber}\n\n🔐 Please share your OTP with the driver: ${rideOTP}`,
       [
         {
           text: '📱 Call Driver',
@@ -411,8 +416,6 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
         break;
       case 'driver_arriving':
         console.log('🚗 Driver arriving at pickup');
-        break;
-      case 'driver_arrived':
         console.log('📍 Driver arrived at pickup');
         break;
       case 'in_progress':
@@ -471,7 +474,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
           subtitle: `ETA: ${estimatedArrival} minutes`,
           color: '#007AFF'
         };
-      case 'driver_arrived':
+      case 'driver_arriving':
         return {
           title: '📍 Driver Arrived',
           subtitle: 'Your driver is at the pickup location',
@@ -509,11 +512,22 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
         drivers={currentDriverLocation ? [{
           id: 'current_driver',
           name: rideDetails.assignedDriver?.name || 'Driver',
-          lat: currentDriverLocation.lat,
-          lng: currentDriverLocation.lng,
+          phone: '',
+          email: '',
+          rating: rideDetails.assignedDriver?.rating || 5.0,
           status: 'busy' as const,
-          vehicle: rideDetails.assignedDriver?.vehicle,
-          rating: rideDetails.assignedDriver?.rating,
+          total_rides: 0,
+          vehicle_info: rideDetails.assignedDriver?.vehicle_info || { type: 'economy', model: 'Car', color: 'White', plateNumber: '' },
+          license_number: '',
+          is_verified: true,
+          is_available: false,
+          current_location: {
+            lat: currentDriverLocation.lat,
+            lng: currentDriverLocation.lng
+          },
+          user_type: 'driver' as const,
+          created_at: '',
+          updated_at: ''
         }] : []}
         pickupLocation={rideDetails.pickupLocation}
         dropoffLocation={rideDetails.destinationLocation}
@@ -573,13 +587,13 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
             <View style={styles.driverInfo}>
               <Text style={styles.driverName}>
                 {rideDetails.assignedDriver.name}
-                {rideDetails.assignedDriver.isVerified && ' ✅'}
+                {rideDetails.assignedDriver.is_verified && ' ✅'}
               </Text>
               <Text style={styles.vehicleInfo}>
-                {rideDetails.assignedDriver.vehicle?.color} {rideDetails.assignedDriver.vehicle?.type}
+                                  {rideDetails.assignedDriver.vehicle_info?.color} {rideDetails.assignedDriver.vehicle_info?.type}
               </Text>
               <Text style={styles.plateNumber}>
-                {rideDetails.assignedDriver.vehicle?.plateNumber}
+                                  {rideDetails.assignedDriver.vehicle_info?.plateNumber}
               </Text>
             </View>
             
@@ -614,7 +628,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
         </View>
 
         {/* Action Buttons */}
-        {rideStatus === 'driver_arrived' && (
+        {rideStatus === 'driver_arriving' && (
           <TouchableOpacity 
             style={styles.startRideButton}
             onPress={() => setShowOTPModal(true)}
@@ -673,7 +687,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       {/* Ride Accepted Card */}
       <RideAcceptedCard
         visible={showRideAcceptedCard}
-        driver={rideDetails.assignedDriver}
+        driver={rideDetails.assignedDriver as any || null}
         ride={{
           id: rideDetails.rideId,
           rider_id: user?.id || '',

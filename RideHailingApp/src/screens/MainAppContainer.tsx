@@ -41,9 +41,9 @@ const MainAppContainer: React.FC = ({ navigation }: any) => {
     if (!user) return false;
 
     if (userType === 'rider') {
-      return user.userType === 'rider' || user.userType === 'both';
+      return user.user_type === 'rider' || user.user_type === 'both';
     } else {
-      return user.userType === 'driver' || user.userType === 'both';
+      return user.user_type === 'driver' || user.user_type === 'both';
     }
   };
 

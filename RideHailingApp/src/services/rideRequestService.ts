@@ -1,7 +1,7 @@
 import { database } from './database';
-import { driverService, Driver } from './driverService';
+import { driverService, Driver } from './driverService.mobile';
 import { LocationCoordinate } from './mapsService';
-import { rideService } from './rideService';
+import * as rideService from './rideService';
 
 export interface RideRequest {
   id: string;
@@ -55,7 +55,7 @@ class RideRequestService {
       console.log('🔍 Initiating ride request for user:', userId);
 
       // Find nearby available drivers
-      const nearbyDrivers = await driverService.findNearbyDrivers(pickupLocation, 10000, rideType);
+      const nearbyDrivers = await driverService.getNearbyDrivers(pickupLocation, 10000);
       
       if (nearbyDrivers.length === 0) {
         return {
@@ -81,9 +81,9 @@ class RideRequestService {
         createdAt: new Date(),
         currentDriverIndex: 0,
         availableDrivers: nearbyDrivers
-          .filter(driver => driver.status === 'available')
-          .sort((a, b) => (a.eta || 0) - (b.eta || 0)) // Sort by ETA
-          .map(driver => driver.id),
+          .filter((driver: any) => driver.status === 'available')
+          .sort((a: any, b: any) => (a.eta || 0) - (b.eta || 0)) // Sort by ETA
+          .map((driver: any) => driver.id),
         requestAttempts: 0,
         maxAttempts: Math.min(this.MAX_TOTAL_ATTEMPTS, nearbyDrivers.length)
       };
@@ -236,19 +236,23 @@ class RideRequestService {
 
       // Create ride in database
       const ride = await rideService.createRide({
-        userId: request.userId,
-        driverId: driverId,
-        rideType: request.rideType,
-        pickupLocation: request.pickupLocation,
-        destinationLocation: request.destinationLocation,
-        pickupAddress: request.pickupAddress,
-        destinationAddress: request.destinationAddress,
-        estimatedFare: request.estimatedFare,
+        rider_id: request.userId,
+        ride_type: request.rideType as 'economy' | 'comfort' | 'premium' | 'xl',
+        pickup_location: {
+          latitude: request.pickupLocation.lat,
+          longitude: request.pickupLocation.lng
+        },
+        destination_location: {
+          latitude: request.destinationLocation.lat,
+          longitude: request.destinationLocation.lng
+        },
+        payment_method: 'cash' as const,
+        fare: request.estimatedFare,
         distance: request.distance,
-        estimatedDuration: request.estimatedDuration
+        estimated_duration: request.estimatedDuration
       });
 
-      if (!ride.success) {
+      if (!ride || !ride.data) {
         throw new Error('Failed to create ride in database');
       }
 
@@ -259,12 +263,12 @@ class RideRequestService {
       await this.resetOtherDriversStatus(request.availableDrivers, driverId);
 
       // Notify user about acceptance
-      await this.notifyUserRideAccepted(request.userId, driverId, ride.rideId!);
+      await this.notifyUserRideAccepted(request.userId, driverId, ride.data.id!);
 
       // Remove from active requests
       this.activeRequests.delete(requestId);
 
-      console.log(`🎉 Ride ${ride.rideId} created successfully with driver ${driverId}`);
+      console.log(`🎉 Ride ${ride.data.id} created successfully with driver ${driverId}`);
 
       return { 
         success: true, 

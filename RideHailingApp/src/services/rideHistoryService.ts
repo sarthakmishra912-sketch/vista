@@ -62,7 +62,7 @@ class RideHistoryService {
       }
 
       // Transform database rows to RideHistoryItem format
-      const rides: RideHistoryItem[] = result.rows.map(row => ({
+      const rides: RideHistoryItem[] = result.rows.map((row: any) => ({
         id: row.id,
         date: new Date(row.created_at).toISOString().split('T')[0],
         from: row.pickup_address || 'Unknown',
