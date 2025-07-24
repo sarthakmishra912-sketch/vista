@@ -12,6 +12,7 @@ import { webSocketService } from '../services/websocketService';
 import { notificationService } from '../services/notificationService';
 import { paymentService } from '../services/paymentService';
 import { OTPResult, VerifyOTPResult } from '../services/otpService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
   user: User | null;
@@ -44,28 +45,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
+    // Simple initialization without network calls for debugging
     const getInitialSession = async () => {
       try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        // Check for cached user only, no API calls
+        const token = await AsyncStorage.getItem('auth_token');
+        const cachedUser = await AsyncStorage.getItem('user_data');
         
-        // Initialize services if user is authenticated
-        if (currentUser) {
-          // Initialize push notifications
-          const pushToken = await notificationService.initialize();
-          if (pushToken) {
-            await notificationService.savePushToken(currentUser.id);
+        if (token && cachedUser) {
+          try {
+            setUser(JSON.parse(cachedUser));
+          } catch (parseError) {
+            console.error('Error parsing cached user:', parseError);
+            setUser(null);
           }
-
-          // Initialize payment tables
-          await paymentService.initializePaymentTables();
-          
-          // Connect to WebSocket
-          await webSocketService.connect();
+        } else {
+          setUser(null);
         }
       } catch (error) {
         console.error('Error getting initial session:', error);
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -73,11 +72,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     getInitialSession();
 
-    // Cleanup services on unmount
-    return () => {
-      webSocketService.disconnect();
-      notificationService.cleanup();
-    };
+    // No cleanup needed for simplified version
   }, []);
 
   const handleRequestOTP = async (phone: string): Promise<OTPResult> => {

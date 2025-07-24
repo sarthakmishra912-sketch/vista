@@ -1,19 +1,32 @@
 import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AuthProvider } from './src/context/AuthContext';
-import { RideProvider } from './src/context/RideContext';
-import AppNavigator from './src/navigation/AppNavigator';
 
+// Minimal app for debugging
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <RideProvider>
-          <AppNavigator />
-          <StatusBar style="auto" />
-        </RideProvider>
-      </AuthProvider>
-    </GestureHandlerRootView>
+    <View style={styles.container}>
+      <Text style={styles.text}>🚗 Ride Hailing App</Text>
+      <Text style={styles.subtext}>App is running successfully!</Text>
+      <StatusBar style="auto" />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  subtext: {
+    fontSize: 16,
+    color: '#666',
+  },
+});
