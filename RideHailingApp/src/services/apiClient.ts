@@ -89,6 +89,13 @@ class ApiClient {
     });
   }
 
+  async registerDriver(driverData: any) {
+    return this.request('/drivers/register', {
+      method: 'POST',
+      body: JSON.stringify(driverData),
+    });
+  }
+
   // Ride management
   async createRide(rideData: any) {
     return this.request('/rides', {

@@ -458,7 +458,7 @@ const RideBookingCard: React.FC<RideBookingCardProps> = ({
                 {rideType.closestDriver && (
                   <Text style={styles.driverInfo}>
                     Closest: {rideType.closestDriver.name}
-                    {rideType.closestDriver.isVerified && ' ✅'}
+                    {rideType.closestDriver.is_verified && ' ✅'}
                   </Text>
                 )}
               </View>

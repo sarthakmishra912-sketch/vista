@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import CustomMapView from '../../components/MapView';
 import { googleMapsService, LocationCoordinate } from '../../services/mapsService';
-import { driverService, Driver } from '../../services/driverService';
+import { driverService, Driver as MobileDriver } from '../../services/driverService.mobile';
 import { useAuth } from '../../context/AuthContext';
 import { useRide } from '../../context/RideContext';
 import { RideStatus } from '../../types';
@@ -28,7 +28,7 @@ interface RideDetails {
   destinationLocation: LocationCoordinate;
   pickupAddress: string;
   destinationAddress: string;
-  assignedDriver?: Driver;
+  assignedDriver?: MobileDriver;
   fare: number;
 }
 
@@ -88,7 +88,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
         rideId: rideDetails.rideId,
         status: 'requested',
         driverName: rideDetails.assignedDriver?.name || 'Driver',
-        vehicleInfo: rideDetails.assignedDriver?.vehicle?.plateNumber || 'Vehicle',
+        vehicleInfo: rideDetails.assignedDriver?.vehicle_info?.plateNumber || 'Vehicle',
         pickupAddress: rideDetails.pickupAddress,
         destinationAddress: rideDetails.destinationAddress,
         startedAt: new Date().toISOString(),
@@ -298,7 +298,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
     // Show arrival notification
     Alert.alert(
       '🎉 Your Ride Has Arrived!',
-      `${rideDetails.assignedDriver?.name || 'Your driver'} is at your pickup location.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle?.plateNumber}\n\n🔐 Please share your OTP with the driver: ${rideOTP}`,
+      `${rideDetails.assignedDriver?.name || 'Your driver'} is at your pickup location.\n\nVehicle: ${rideDetails.assignedDriver?.vehicle_info?.plateNumber}\n\n🔐 Please share your OTP with the driver: ${rideOTP}`,
       [
         {
           text: '📱 Call Driver',
@@ -512,11 +512,22 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
         drivers={currentDriverLocation ? [{
           id: 'current_driver',
           name: rideDetails.assignedDriver?.name || 'Driver',
-          lat: currentDriverLocation.lat,
-          lng: currentDriverLocation.lng,
+          phone: '',
+          email: '',
+          rating: rideDetails.assignedDriver?.rating || 5.0,
           status: 'busy' as const,
-          vehicle: rideDetails.assignedDriver?.vehicle,
-          rating: rideDetails.assignedDriver?.rating,
+          total_rides: 0,
+          vehicle_info: rideDetails.assignedDriver?.vehicle_info || { type: 'economy', model: 'Car', color: 'White', plateNumber: '' },
+          license_number: '',
+          is_verified: true,
+          is_available: false,
+          current_location: {
+            lat: currentDriverLocation.lat,
+            lng: currentDriverLocation.lng
+          },
+          user_type: 'driver' as const,
+          created_at: '',
+          updated_at: ''
         }] : []}
         pickupLocation={rideDetails.pickupLocation}
         dropoffLocation={rideDetails.destinationLocation}
@@ -576,13 +587,13 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
             <View style={styles.driverInfo}>
               <Text style={styles.driverName}>
                 {rideDetails.assignedDriver.name}
-                {rideDetails.assignedDriver.isVerified && ' ✅'}
+                {rideDetails.assignedDriver.is_verified && ' ✅'}
               </Text>
               <Text style={styles.vehicleInfo}>
-                {rideDetails.assignedDriver.vehicle?.color} {rideDetails.assignedDriver.vehicle?.type}
+                                  {rideDetails.assignedDriver.vehicle_info?.color} {rideDetails.assignedDriver.vehicle_info?.type}
               </Text>
               <Text style={styles.plateNumber}>
-                {rideDetails.assignedDriver.vehicle?.plateNumber}
+                                  {rideDetails.assignedDriver.vehicle_info?.plateNumber}
               </Text>
             </View>
             
@@ -676,7 +687,7 @@ const RideTrackingScreen: React.FC = ({ route, navigation }: any) => {
       {/* Ride Accepted Card */}
       <RideAcceptedCard
         visible={showRideAcceptedCard}
-        driver={rideDetails.assignedDriver}
+        driver={rideDetails.assignedDriver as any || null}
         ride={{
           id: rideDetails.rideId,
           rider_id: user?.id || '',

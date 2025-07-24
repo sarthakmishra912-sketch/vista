@@ -63,7 +63,7 @@ const RideInProgressSnackBar: React.FC<RideInProgressSnackBarProps> = ({ onPress
   }, [isRideActive, activeRide]);
 
   const getStatusInfo = () => {
-    if (!activeRide) return { text: '', color: '#22C55E', icon: 'car' };
+    if (!activeRide) return { text: '', color: '#22C55E', icon: 'car-outline' as const };
 
     switch (activeRide.status) {
       case 'requested':
@@ -89,7 +89,7 @@ const RideInProgressSnackBar: React.FC<RideInProgressSnackBarProps> = ({ onPress
         return { 
           text: 'Ride in progress', 
           color: '#8B5CF6', 
-          icon: 'navigation-outline' as const 
+          icon: 'navigate-outline' as const 
         };
       default:
         return { 

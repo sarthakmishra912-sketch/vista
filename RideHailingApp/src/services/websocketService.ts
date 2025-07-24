@@ -1,4 +1,4 @@
-import { getAuthToken } from './authService';
+import { getStoredToken } from './authService';
 
 interface WebSocketMessage {
   type: string;
@@ -51,7 +51,7 @@ class WebSocketService {
     this.isConnecting = true;
 
     try {
-      const token = await getAuthToken();
+      const token = await getStoredToken();
       if (!token) {
         throw new Error('No authentication token available');
       }

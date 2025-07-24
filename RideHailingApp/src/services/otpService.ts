@@ -353,7 +353,7 @@ class OTPService {
 
       return {
         success: true,
-        user: { ...user, access_token: token },
+        user: user,
         token,
       };
     } catch (error: any) {

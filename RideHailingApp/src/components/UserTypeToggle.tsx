@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import DriverSignupCard, { DriverSignupData } from './DriverSignupCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { driverService } from '../services/driverService';
+import { driverService } from '../services/driverService.mobile';
 
 interface UserTypeToggleProps {
   currentUserType: 'rider' | 'driver';
@@ -131,12 +131,14 @@ const UserTypeToggle: React.FC<UserTypeToggleProps> = ({
         phone: driverData.phone,
         address: driverData.address,
         vehicleNumber: driverData.vehicleNumber,
-        vehicleName: driverData.vehicleName,
+        vehicleModel: driverData.vehicleName,
+        vehicleType: 'economy',
+        licenseNumber: 'DL123456',
         vehicleColor: driverData.vehicleColor,
       });
 
       if (!registrationResult.success) {
-        throw new Error(registrationResult.message || 'Registration failed');
+        throw new Error(registrationResult.error || 'Registration failed');
       }
       
       console.log('✅ Driver registration completed successfully');
