@@ -72,7 +72,7 @@ const AddressSearchInput: React.FC<AddressSearchInputProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
-  const searchTimeout = useRef<NodeJS.Timeout>();
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   const animatedHeight = useRef(new Animated.Value(0)).current;
   const inputRef = useRef<TextInput>(null);
 
@@ -406,8 +406,7 @@ const AddressSearchInput: React.FC<AddressSearchInputProps> = ({
                 )}
               </View>
             }
-            style={styles.suggestionsList}
-            maxHeight={300}
+            style={[styles.suggestionsList, { maxHeight: 300 }]}
           />
         </Animated.View>
       )}

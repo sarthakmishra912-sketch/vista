@@ -34,8 +34,8 @@ const UserTypeToggle: React.FC<UserTypeToggleProps> = ({
     if (!user) return;
 
     // Check if user is registered as both rider and driver
-    const canSwitchToDriver = user.userType === 'driver' || user.userType === 'both';
-    const canSwitchToRider = user.userType === 'rider' || user.userType === 'both';
+    const canSwitchToDriver = user.user_type === 'driver' || user.user_type === 'both';
+    const canSwitchToRider = user.user_type === 'rider' || user.user_type === 'both';
 
     const targetType = currentUserType === 'rider' ? 'driver' : 'rider';
 

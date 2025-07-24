@@ -72,7 +72,7 @@ const CustomMapView: React.FC<MapViewProps> = ({
   mapStyle = 'standard',
   showTraffic = true,
   searchRadius = 5000,
-  routeCoordinates,
+  routeCoordinates: propRouteCoordinates,
   rideInProgress = false,
   driverLocation
 }) => {
@@ -84,7 +84,7 @@ const CustomMapView: React.FC<MapViewProps> = ({
     longitudeDelta: 0.0421,
   });
   const [userLocation, setUserLocation] = useState<LocationCoordinate | null>(null);
-  const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
+  const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>(propRouteCoordinates || []);
   const [isMapReady, setIsMapReady] = useState(false);
 
   // Initialize user location
@@ -271,7 +271,7 @@ const CustomMapView: React.FC<MapViewProps> = ({
         showsScale={Platform.OS === 'android'}
         showsBuildings={true}
         showsIndoors={true}
-        showsTraffic={showTraffic}
+        showsTraffic={false}
         rotateEnabled={true}
         pitchEnabled={true}
         scrollEnabled={true}
