@@ -11,22 +11,10 @@ import MapView, {
 } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { googleMapsService, LocationCoordinate } from '../services/mapsService';
+import { Driver as MobileDriver } from '../services/driverService.mobile';
 import { Ionicons } from '@expo/vector-icons';
 
-interface Driver {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  heading?: number;
-  vehicle?: {
-    type: string;
-    color: string;
-    plateNumber: string;
-  };
-  rating?: number;
-  eta?: number;
-}
+
 
 interface RouteInfo {
   coordinates: LatLng[];
@@ -36,7 +24,7 @@ interface RouteInfo {
 }
 
 interface MapViewProps {
-  drivers?: Driver[];
+  drivers?: MobileDriver[];
   pickupLocation?: LocationCoordinate;
   dropoffLocation?: LocationCoordinate;
   currentUserLocation?: LocationCoordinate;
@@ -44,7 +32,7 @@ interface MapViewProps {
   userType?: 'rider' | 'driver';
   isTracking?: boolean;
   onLocationPress?: (coordinate: LatLng) => void;
-  onDriverPress?: (driver: Driver) => void;
+  onDriverPress?: (driver: MobileDriver) => void;
   onRegionChange?: (region: Region) => void;
   showUserLocation?: boolean;
   followUserLocation?: boolean;
@@ -188,10 +176,12 @@ const CustomMapView: React.FC<MapViewProps> = ({
 
     // Add driver locations
     drivers.forEach(driver => {
-      coordinates.push({
-        latitude: driver.lat,
-        longitude: driver.lng,
-      });
+      if (driver.current_location) {
+        coordinates.push({
+          latitude: driver.current_location.lat,
+          longitude: driver.current_location.lng,
+        });
+      }
     });
 
     // Add pickup/dropoff locations
@@ -231,7 +221,7 @@ const CustomMapView: React.FC<MapViewProps> = ({
     }
   };
 
-  const handleDriverPress = (driver: Driver) => {
+  const handleDriverPress = (driver: MobileDriver) => {
     if (onDriverPress) {
       onDriverPress(driver);
     }
@@ -244,10 +234,10 @@ const CustomMapView: React.FC<MapViewProps> = ({
     }
   };
 
-  const getDriverMarkerColor = (driver: Driver): string => {
-    if (rideInProgress && driverLocation && 
-        driver.lat === driverLocation.lat && 
-        driver.lng === driverLocation.lng) {
+  const getDriverMarkerColor = (driver: MobileDriver): string => {
+    if (rideInProgress && driverLocation && driver.current_location &&
+        driver.current_location.lat === driverLocation.lat && 
+        driver.current_location.lng === driverLocation.lng) {
       return '#00C851'; // Green for assigned driver
     }
     return '#007AFF'; // Blue for available drivers
@@ -302,26 +292,21 @@ const CustomMapView: React.FC<MapViewProps> = ({
         )}
 
         {/* Driver markers */}
-        {drivers.map((driver) => (
+        {drivers.filter(driver => driver.current_location).map((driver) => (
           <Marker
             key={driver.id}
             coordinate={{
-              latitude: driver.lat,
-              longitude: driver.lng,
+              latitude: driver.current_location!.lat,
+              longitude: driver.current_location!.lng,
             }}
             title={driver.name}
-            description={`${driver.vehicle?.type || 'Vehicle'} • ${driver.rating || 'N/A'}⭐`}
+            description={`${driver.vehicle_info?.type || 'Vehicle'} • ${driver.rating || 'N/A'}⭐`}
             onPress={() => handleDriverPress(driver)}
-            rotation={getMarkerRotation(driver.heading)}
+            rotation={0}
             flat={true}
           >
-            <View style={[styles.driverMarker, { backgroundColor: getDriverMarkerColor(driver) }]}>
+            <View style={[styles.driverMarker, { backgroundColor: '#22C55E' }]}>
               <Ionicons name="car" size={20} color="#FFF" />
-              {driver.eta && (
-                <View style={styles.etaBadge}>
-                  <Text style={styles.etaText}>{driver.eta}m</Text>
-                </View>
-              )}
             </View>
           </Marker>
         ))}

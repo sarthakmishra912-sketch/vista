@@ -16,7 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import CustomMapView from '../../components/MapView';
 import * as Location from 'expo-location';
 import { LocationCoordinate } from '../../services/mapsService';
-import { driverService } from '../../services/driverService';
+import { driverService } from '../../services/driverService.mobile';
 import { rideRequestService } from '../../services/rideRequestService';
 
 const { width } = Dimensions.get('window');
@@ -99,8 +99,7 @@ const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }) => {
       await driverService.updateDriverLocation(
         user.id,
         currentLocation,
-        0, // heading
-        0  // speed
+        0 // heading
       );
     } catch (error) {
       console.error('Error updating driver location:', error);

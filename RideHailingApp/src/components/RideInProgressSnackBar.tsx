@@ -70,32 +70,32 @@ const RideInProgressSnackBar: React.FC<RideInProgressSnackBarProps> = ({ onPress
         return { 
           text: 'Finding driver...', 
           color: '#F59E0B', 
-          icon: 'search' as const 
+          icon: 'search-outline' as const 
         };
       case 'accepted':
       case 'driver_arriving':
         return { 
           text: `${activeRide.driverName} is on the way`, 
           color: '#22C55E', 
-          icon: 'car' as const 
+          icon: 'car-outline' as const 
         };
       case 'driver_arrived':
         return { 
           text: `${activeRide.driverName} has arrived`, 
           color: '#3B82F6', 
-          icon: 'location' as const 
+          icon: 'location-outline' as const 
         };
       case 'in_progress':
         return { 
           text: 'Ride in progress', 
           color: '#8B5CF6', 
-          icon: 'navigate' as const 
+          icon: 'navigation-outline' as const 
         };
       default:
         return { 
           text: 'Ride active', 
           color: '#22C55E', 
-          icon: 'car' as const 
+          icon: 'car-outline' as const 
         };
     }
   };

@@ -54,9 +54,9 @@ const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         user_type: userType,
       };
 
-      const { error } = await signUp(email, password, userData);
-      if (error) {
-        Alert.alert('Sign Up Failed', error.message);
+              const result = await signUp({ ...userData, email, password });
+                if (result.error) {
+          Alert.alert('Sign Up Failed', result.error);
       } else {
         Alert.alert('Success', 'Account created successfully! Please check your email to verify your account.');
       }

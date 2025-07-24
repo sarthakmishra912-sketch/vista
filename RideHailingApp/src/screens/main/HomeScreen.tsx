@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomMapView from '../../components/MapView';
 import RideBookingCard from '../../components/RideBookingCard';
 import { googleMapsService, LocationCoordinate, FareEstimate } from '../../services/mapsService';
-import { driverService, Driver } from '../../services/driverService';
+import { driverService, Driver } from '../../services/driverService.mobile';
 import { dataSeeder } from '../../services/dataSeeder';
 import { rideRequestService } from '../../services/rideRequestService';
 import { useAuth } from '../../context/AuthContext';
@@ -76,8 +76,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
    */
   const initializeDriverService = async () => {
     try {
-      await driverService.initializeTables();
-      
       // Initialize database with real data if needed
       if (currentLocation && user) {
         await dataSeeder.initializeIfNeeded(currentLocation, user.id);
@@ -100,7 +98,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       // Step 1: Query PostGIS for nearby drivers within 10km radius
       console.log('🗄️ Step 2: Querying PostGIS for nearby drivers...');
-      const drivers = await driverService.findNearbyDrivers(location, 10000);
+      const drivers = await driverService.getNearbyDrivers(location, 10000);
       
       if (drivers.length > 0) {
         console.log(`📊 Step 3: Found ${drivers.length} drivers, fetching detailed info...`);
@@ -111,9 +109,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         
         console.log('✅ Step 4: Driver data loaded and displayed:', {
           total: drivers.length,
-          available: drivers.filter(d => d.status === 'available').length,
-          averageETA: Math.round(drivers.reduce((sum, d) => sum + (d.eta || 0), 0) / drivers.length),
-          vehicleTypes: [...new Set(drivers.map(d => d.vehicle?.type).filter(Boolean))]
+          available: drivers.filter((d: Driver) => d.status === 'available').length,
+          averageETA: Math.round(drivers.reduce((sum: number, d: Driver) => sum + 0, 0) / drivers.length),
+          vehicleTypes: [...new Set(drivers.map((d: Driver) => d.vehicle_info?.type).filter(Boolean))]
         });
       } else {
         console.log('⚠️ No drivers found in the area');
@@ -416,20 +414,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   const handleDriverPress = (driver: Driver) => {
-    const vehicleInfo = driver.vehicle 
-      ? `${driver.vehicle.type} • ${driver.vehicle.color}\n${driver.vehicle.plateNumber}`
+    const vehicleInfo = driver.vehicle_info 
+      ? `${driver.vehicle_info.type} • ${driver.vehicle_info.color}\n${driver.vehicle_info.plateNumber}`
       : 'Vehicle info not available';
     
     const additionalInfo = [
       `Rating: ${driver.rating?.toFixed(1) || 'N/A'}⭐`,
-      `Total Rides: ${driver.totalRides || 0}`,
-      `ETA: ${driver.eta || 'N/A'} minutes`,
-      driver.isVerified ? '✅ Verified Driver' : '⚠️ Unverified',
+      `Total Rides: ${driver.total_rides || 0}`,
+      driver.is_verified ? '✅ Verified Driver' : '⚠️ Unverified',
       `Status: ${driver.status}`,
     ].join('\n');
 
     Alert.alert(
-      `${driver.name}${driver.isVerified ? ' ✅' : ''}`,
+      `${driver.name}${driver.is_verified ? ' ✅' : ''}`,
       `${vehicleInfo}\n\n${additionalInfo}`,
       [
         { text: 'Cancel', style: 'cancel' },
