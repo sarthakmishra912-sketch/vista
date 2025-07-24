@@ -407,9 +407,10 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Mock Ride Hailing API Server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🌐 Network access: http://0.0.0.0:${PORT}/health`);
   console.log(`📱 Ready for mobile app integration!`);
   console.log(`\n✨ DEMO MODE: Using in-memory storage (no database required)`);
   console.log(`📋 See BACKEND_SETUP.md for full PostgreSQL setup`);

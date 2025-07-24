@@ -57,9 +57,9 @@ if [ -f "App.original.backup.tsx" ]; then
     echo "✅ Original mobile app restored"
 fi
 
-# Install dependencies
+# Install dependencies (skip iOS scripts for Expo Go)
 echo "📦 Installing dependencies for mobile..."
-npm install --legacy-peer-deps
+npm install --legacy-peer-deps --ignore-scripts
 
 echo ""
 echo "🎯 SETUP COMPLETE!"
