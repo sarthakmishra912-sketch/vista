@@ -136,7 +136,6 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Get ride by ID
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
