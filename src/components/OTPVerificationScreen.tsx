@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import svgPaths from "../imports/svg-ortnbr1thp";
 import img103451 from "figma:asset/5d54f3b2ac26f683d46d31996748c6b7893e6cc5.png";
 import exampleImage from 'figma:asset/807f21c1920af9e824c25cc65cc5f797e9946d35.png';
@@ -254,7 +254,7 @@ function Footer() {
 
 export default function OTPVerificationScreen({ phoneNumber, onVerify, onBack, onResend }) {
   /*
-    🚀 FLUTTER API INTEGRATION - OTP VERIFICATION SCREEN:
+    🚀 API INTEGRATION - OTP VERIFICATION SCREEN:
     
     1. OTP Input Management:
        - Use pin_code_fields package for better UX
@@ -288,7 +288,7 @@ export default function OTPVerificationScreen({ phoneNumber, onVerify, onBack, o
     6. Security Features:
        - Rate limiting on verification attempts
        - Automatic logout after suspicious activity
-       - Secure token storage using flutter_secure_storage
+       - Secure token storage using localStorage or sessionStorage
        - Biometric authentication setup prompt
        
     7. Accessibility:

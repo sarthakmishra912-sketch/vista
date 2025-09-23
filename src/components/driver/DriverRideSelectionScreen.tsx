@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { imgEllipse300, img, imgVector47, imgVector44, imgVector43, imgVector37, imgVector45, imgVector38 } from "../../imports/svg-ru0zr";
 import svgPaths from "../../imports/svg-l145m4g3nd";
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import svgPaths from "../imports/svg-ilyboxozfc";
 import imgFrame from "figma:asset/4e95da5f9e6ec1d32f897fbff5c28b62b3c1d8ed.png";
 import imgFrame1 from "figma:asset/516e77515feb8b0da14eb9d08100d04603ad8beb.png";
@@ -100,7 +100,7 @@ function TermsCard({ isAgreed, onAgreeChange }) {
 
 export default function TermsScreen({ onAccept, onBack }) {
   /*
-    🚀 FLUTTER API INTEGRATION - TERMS & CONDITIONS SCREEN:
+    🚀 API INTEGRATION - TERMS & CONDITIONS SCREEN:
     
     1. Terms Content Management:
        - API: GET /api/legal/terms-and-conditions?version=latest
@@ -130,7 +130,7 @@ export default function TermsScreen({ onAccept, onBack }) {
        - Cache latest terms version locally
        - Allow reading offline with online sync
        - Handle network issues gracefully
-       - Secure storage using flutter_secure_storage
+       - Secure storage using localStorage or sessionStorage
        
     6. Accessibility Features:
        - Text-to-speech for visually impaired

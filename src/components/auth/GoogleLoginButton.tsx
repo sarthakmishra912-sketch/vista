@@ -8,7 +8,7 @@ interface GoogleLoginButtonProps {
 export default function GoogleLoginButton({ onLogin }: GoogleLoginButtonProps) {
   const handleGoogleLogin = () => {
     /*
-      🚀 FLUTTER API INTEGRATION - GOOGLE LOGIN:
+      🚀 API INTEGRATION - GOOGLE LOGIN:
       
       1. Google Sign-In Setup:
          - Add google_sign_in package to pubspec.yaml

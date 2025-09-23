@@ -1,31 +1,29 @@
 # Raahi - Butter to your जाम 🚗
 
-A complete cab booking Flutter application with authentic Raahi branding and seamless user experience.
+A complete cab booking web application with authentic Raahi branding and seamless user experience.
 
-![Raahi App](https://img.shields.io/badge/Flutter-3.0+-02569B?style=for-the-badge&logo=flutter&logoColor=white)
-![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-green?style=for-the-badge)
+![Raahi App](https://img.shields.io/badge/React-18+-61DAFB?style=for-the-badge&logo=react&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Web-green?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)
 
 ## 📱 About Raahi
 
-Raahi is a comprehensive cab booking application built with Flutter, featuring:
+Raahi is a comprehensive cab booking web application built with React and TypeScript, featuring:
 - **3 Authentication Methods**: Truecaller OTP, Google Sign-In, Mobile OTP
 - **Complete Ride Journey**: From booking to completion with real-time tracking
 - **Authentic Branding**: Custom Raahi colors, fonts, and immersive mobile UI
-- **State Management**: Provider pattern for robust app state handling
-- **Persistent Storage**: SharedPreferences for user preferences
+- **State Management**: React Context and hooks for robust app state handling
+- **Persistent Storage**: LocalStorage for user preferences
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-Before running the Flutter app, ensure you have:
+Before running the web app, ensure you have:
 
-- **Flutter SDK**: 3.0.0 or higher
-- **Dart**: 3.0.0 or higher
-- **Android Studio** or **VS Code** with Flutter extensions
-- **iOS**: Xcode 14+ (for iOS development)
-- **Android**: Android SDK 21+ (API level 21)
+- **Node.js**: 16.0.0 or higher
+- **npm** or **yarn**: Latest version
+- **VS Code** with React/TypeScript extensions
 
 ### Installation
 
@@ -33,97 +31,83 @@ Before running the Flutter app, ensure you have:
    ```bash
    # If you have git access to this project
    git clone <repository-url>
-   cd raahi-flutter-app
+   cd raahi-web-app
    ```
 
-2. **Install Flutter dependencies**
+2. **Install dependencies**
    ```bash
-   flutter pub get
+   npm install
    ```
 
-3. **Verify Flutter installation**
+3. **Run the development server**
    ```bash
-   flutter doctor
+   npm run dev
    ```
-   Ensure all checkmarks are green for your target platforms.
 
-4. **Run the app**
+4. **Build for production**
    ```bash
-   # For debug mode
-   flutter run
-   
-   # For specific device
-   flutter run -d <device-id>
-   
-   # For release mode
-   flutter run --release
+   npm run build
    ```
 
 ## 📦 Dependencies
 
 ### Core Dependencies
-```yaml
-# State Management
-provider: ^6.1.1
+```json
+{
+  "react": "^18.3.1",
+  "react-dom": "^18.3.1",
+  "typescript": "^5.0.0",
+  "vite": "^6.3.5"
+}
+```
 
-# Local Storage  
-shared_preferences: ^2.2.2
-flutter_secure_storage: ^9.0.0
+### UI Components
+```json
+{
+  "@radix-ui/react-*": "Latest versions",
+  "lucide-react": "^0.487.0",
+  "tailwindcss": "Latest",
+  "class-variance-authority": "^0.7.1"
+}
+```
 
-# HTTP & Networking
-http: ^1.1.0
-dio: ^5.4.0
-
-# UI Components
-pin_code_fields: ^8.0.1
-country_code_picker: ^3.0.0
-
-# Location & Maps
-geolocator: ^10.1.0
-geocoding: ^2.1.1
-permission_handler: ^11.1.0
-
-# Communication
-url_launcher: ^6.2.2
-
-# Utilities
-intl: ^0.19.0
-uuid: ^4.2.1
+### Development Tools
+```json
+{
+  "@vitejs/plugin-react-swc": "^3.10.2",
+  "@types/node": "^20.10.0"
+}
 ```
 
 ## 🏗️ Project Structure
 
 ```
-lib/
-├── main.dart                 # App entry point
-├── providers/
-│   ├── app_state_provider.dart    # Global app state management
-│   └── ride_provider.dart         # Ride booking state management
-├── screens/
-│   ├── login_screen.dart          # Authentication screen
-│   ├── splash_screen.dart         # Find a Trip screen
-│   ├── contact_number_screen.dart # Phone input screen
-│   ├── otp_verification_screen.dart # OTP verification
-│   ├── terms_screen.dart          # Terms & conditions
-│   ├── ride_booking_screen.dart   # Vehicle selection & booking
-│   ├── booking_loader_screen.dart # Driver search animation
-│   └── driver_tracking_screen.dart # Real-time driver tracking
-└── utils/
-    ├── raahi_colors.dart          # Brand color definitions
-    └── app_theme.dart             # Material theme configuration
+src/
+├── App.tsx                    # Main React application
+├── components/                # React components
+│   ├── auth/                  # Authentication components
+│   ├── driver/                # Driver-specific components
+│   ├── passenger/             # Passenger components
+│   ├── ui/                    # Reusable UI components
+│   └── screens/               # Main screen components
+├── hooks/                     # Custom React hooks
+├── services/                  # API services
+├── utils/                     # Utility functions
+├── styles/                    # CSS and styling
+└── assets/                    # Static assets
 ```
 
 ## 🎨 Raahi Branding
 
 ### Color Palette
-```dart
-class RaahiColors {
-  static const textPrimary = Color(0xFF11211e);      // Main text
-  static const backgroundPrimary = Color(0xFFF6EFD8); // Background
-  static const buttonPrimary = Color(0xFFcf923d);     // Buttons
-  static const tagline = Color(0xFFc3aa85);           // Tagline
+```typescript
+export const RaahiColors = {
+  textPrimary: '#11211e',      // Main text
+  backgroundPrimary: '#F6EFD8', // Background
+  buttonPrimary: '#cf923d',     // Buttons
+  tagline: '#c3aa85',           // Tagline
   // ... additional colors
-}
+} as const;
 ```
 
 ### Custom Fonts
@@ -135,7 +119,7 @@ class RaahiColors {
 ## 📱 Features Implementation
 
 ### Authentication Flow
-```dart
+```typescript
 // Login methods available
 - Truecaller OTP (SDK integration ready)
 - Google Sign-In (OAuth 2.0 ready)
@@ -143,68 +127,52 @@ class RaahiColors {
 ```
 
 ### State Management
-```dart
-// Global app state
-context.read<AppStateProvider>().login('truecaller');
-context.read<AppStateProvider>().navigateToScreen(AppScreen.booking);
+```typescript
+// Global app state using React Context
+const { login, navigateToScreen } = useAppState();
+login('truecaller');
+navigateToScreen('booking');
 
-// Ride booking state
-context.read<RideProvider>().selectVehicle('raahi-mini');
-context.read<RideProvider>().setPickupLocation('Location');
+// Ride booking state using custom hooks
+const { selectVehicle, setPickupLocation } = useRideBooking();
+selectVehicle('raahi-mini');
+setPickupLocation('Location');
 ```
 
 ### Screen Navigation
-```dart
-AppScreen.login → AppScreen.contact → AppScreen.otp → 
-AppScreen.terms (first-time) → AppScreen.booking → 
-AppScreen.bookingLoader → AppScreen.driverTracking
+```typescript
+// React Router navigation flow
+/login → /contact → /otp → 
+/terms (first-time) → /booking → 
+/booking-loader → /driver-tracking
 ```
 
 ## 🔧 Development Setup
 
 ### VS Code Extensions (Recommended)
-- Flutter
-- Dart
-- Flutter Widget Snippets
-- Awesome Flutter Snippets
+- ES7+ React/Redux/React-Native snippets
+- TypeScript Importer
+- Tailwind CSS IntelliSense
+- Prettier - Code formatter
 
-### Android Development
-1. **Install Android Studio**
-2. **Set up Android SDK** (API level 21+)
-3. **Create AVD** (Android Virtual Device)
-4. **Enable USB Debugging** on physical device
-
-### iOS Development (macOS only)
-1. **Install Xcode** (14+)
-2. **Set up iOS Simulator**
-3. **Configure Apple Developer Account** (for device testing)
-4. **Install CocoaPods**
-   ```bash
-   sudo gem install cocoapods
-   cd ios && pod install
-   ```
+### Web Development
+1. **Install Node.js** (16.0.0+)
+2. **Install dependencies** with `npm install`
+3. **Start development server** with `npm run dev`
+4. **Open browser** to `http://localhost:5173`
 
 ## 🚀 Building for Production
 
-### Android APK
+### Web Build
 ```bash
-# Build debug APK
-flutter build apk --debug
+# Build for production
+npm run build
 
-# Build release APK  
-flutter build apk --release
+# Preview production build locally
+npm run preview
 
-# Build App Bundle (recommended for Play Store)
-flutter build appbundle --release
-```
-
-### iOS IPA
-```bash
-# Build for iOS device
-flutter build ios --release
-
-# Open in Xcode for App Store upload
-open ios/Runner.xcworkspace
+# Deploy to hosting service (e.g., Vercel, Netlify)
+# The build output will be in the 'dist' folder
 ```
 
 ## 🔗 API Integration
@@ -212,7 +180,7 @@ open ios/Runner.xcworkspace
 The app is designed with API integration in mind. All network calls are documented with comments:
 
 ### Authentication APIs
-```dart
+```typescript
 // Truecaller verification
 POST /api/auth/truecaller-verify
 { phone: string, truecaller_token: string }
@@ -227,7 +195,7 @@ POST /api/auth/send-otp
 ```
 
 ### Ride Booking APIs
-```dart
+```typescript
 // Driver search
 POST /api/rides/search
 { pickup_lat: number, pickup_lng: number, vehicle_type: string }
@@ -240,38 +208,38 @@ WebSocket: ws://your-api.com/rides/{ride_id}/track
 
 ### Run Tests
 ```bash
-# Unit tests
-flutter test
+# Unit tests (when test framework is added)
+npm test
 
-# Integration tests
-flutter test integration_test/
+# E2E tests (when Cypress/Playwright is added)
+npm run test:e2e
 
-# Widget tests
-flutter test test/widget_test.dart
+# Type checking
+npm run type-check
 ```
 
 ### Debug Tools
 ```bash
-# Flutter Inspector
-flutter run --dart-define=FLUTTER_WEB_USE_SKIA=true
+# Development server with debugging
+npm run dev
 
-# Performance profiling
-flutter run --profile
+# Build analysis
+npm run build -- --analyze
 
-# Debug with DevTools
-flutter pub global activate devtools
-flutter pub global run devtools
+# Browser DevTools
+# Open browser DevTools (F12) for debugging
 ```
 
 ## 🔒 Security Considerations
 
 ### Secure Storage
-```dart
-// Sensitive data storage
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-const storage = FlutterSecureStorage();
-await storage.write(key: 'auth_token', value: token);
+```typescript
+// Sensitive data storage using browser's secure storage
+const setSecureToken = (token: string) => {
+  localStorage.setItem('auth_token', token);
+  // For more sensitive data, consider using sessionStorage
+  // or implementing encryption
+};
 ```
 
 ### API Security
@@ -283,82 +251,88 @@ await storage.write(key: 'auth_token', value: token);
 ## 📋 Environment Configuration
 
 ### Development
-```dart
-// lib/config/app_config.dart
-class AppConfig {
-  static const String baseUrl = 'https://dev-api.raahi.com';
-  static const String googleClientId = 'your-dev-client-id';
-  static const String truecallerAppKey = 'your-dev-truecaller-key';
-}
+```typescript
+// src/config/app.config.ts
+export const AppConfig = {
+  baseUrl: 'https://dev-api.raahi.com',
+  googleClientId: 'your-dev-client-id',
+  truecallerAppKey: 'your-dev-truecaller-key',
+} as const;
 ```
 
 ### Production
-```dart
-class AppConfig {
-  static const String baseUrl = 'https://api.raahi.com';
-  static const String googleClientId = 'your-prod-client-id';
-  static const String truecallerAppKey = 'your-prod-truecaller-key';
-}
+```typescript
+export const AppConfig = {
+  baseUrl: 'https://api.raahi.com',
+  googleClientId: 'your-prod-client-id',
+  truecallerAppKey: 'your-prod-truecaller-key',
+} as const;
 ```
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-**1. Flutter Doctor Issues**
+**1. Node.js Issues**
 ```bash
-flutter doctor --verbose
-flutter clean && flutter pub get
+node --version  # Check Node.js version
+npm --version   # Check npm version
 ```
 
-**2. Android Build Issues**
+**2. Build Issues**
 ```bash
-cd android && ./gradlew clean
-flutter clean && flutter pub get
+rm -rf node_modules package-lock.json
+npm install
+npm run build
 ```
 
-**3. iOS Build Issues**
+**3. TypeScript Issues**
 ```bash
-cd ios && rm -rf Pods Podfile.lock
-pod install
-flutter clean && flutter pub get
+npm run type-check
+# Fix TypeScript errors in the output
 ```
 
-**4. Package Conflicts**
+**4. Dependency Conflicts**
 ```bash
-flutter pub deps
-flutter pub upgrade
+npm ls
+npm audit
+npm update
 ```
 
 ## 📈 Performance Optimization
 
 ### Build Optimization
 ```bash
-# Enable obfuscation for release builds
-flutter build apk --release --obfuscate --split-debug-info=debug-info/
+# Build with optimizations
+npm run build
 
-# Optimize bundle size
-flutter build appbundle --release --tree-shake-icons
+# Analyze bundle size
+npm run build -- --analyze
+
+# Optimize images and assets
+# Use proper image formats (WebP, AVIF)
+# Implement lazy loading for images
 ```
 
 ### Runtime Optimization
-- Use `const` constructors where possible
-- Implement lazy loading for screens
+- Use React.memo() for component memoization
+- Implement code splitting with React.lazy()
 - Optimize image assets with proper sizing
-- Use `ListView.builder` for large lists
+- Use virtual scrolling for large lists
+- Implement proper caching strategies
 
 ## 🤝 Contributing
 
 ### Code Style
 ```bash
-# Format code
-flutter format .
+# Format code with Prettier
+npm run format
 
-# Analyze code
-flutter analyze
+# Lint code with ESLint
+npm run lint
 
-# Check for unused dependencies
-flutter pub deps
+# Type check with TypeScript
+npm run type-check
 ```
 
 ### Git Workflow
@@ -376,18 +350,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 ### Documentation
-- [Flutter Documentation](https://docs.flutter.dev/)
-- [Dart Language Tour](https://dart.dev/guides/language/language-tour)
-- [Provider Package](https://pub.dev/packages/provider)
+- [React Documentation](https://react.dev/)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+- [Vite Guide](https://vitejs.dev/guide/)
 
 ### Issues & Questions
-For technical issues or questions about the Raahi Flutter app:
+For technical issues or questions about the Raahi web app:
 1. Check existing issues in the repository
 2. Create a new issue with detailed description
-3. Include device information and error logs
+3. Include browser information and error logs
 
 ---
 
-**Built with ❤️ in Delhi, NCR using Flutter**
+**Built with ❤️ in Delhi, NCR using React & TypeScript**
 
 *Raahi - Making every journey smooth as butter!* 🧈✨

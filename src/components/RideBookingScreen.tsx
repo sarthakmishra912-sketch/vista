@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { toast } from "sonner@2.0.3";
+import React, { useState, useEffect, useRef } from 'react';
+import { toast } from "sonner";
+import { pricingService } from '../services/pricingService';
+import { geocodingService, GeocodingResult, PlaceSuggestion } from '../services/geocodingService';
 import svgPaths from "../imports/svg-u42y27j2nw";
 import arrowSvgPaths from "../imports/svg-4olgt74d78";
 import imgFrame from "figma:asset/4e95da5f9e6ec1d32f897fbff5c28b62b3c1d8ed.png";
@@ -81,7 +83,54 @@ function LocationDropdown({ addresses, onSelect, isVisible, searchTerm = "" }) {
   );
 }
 
-function LocationInputs({ pickupLocation, dropLocation, onPickupChange, onDropChange, onBack }) {
+// Shimmer effect component
+function ShimmerEffect({ className = "" }) {
+  return (
+    <div className={`animate-pulse ${className}`}>
+      <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_1.5s_ease-in-out_infinite] rounded"></div>
+    </div>
+  );
+}
+
+// Shimmer vehicle card component
+function ShimmerVehicleCard() {
+  return (
+    <div className="bg-white border border-[#f0f0f0] rounded-2xl p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <ShimmerEffect className="w-12 h-12 rounded-full" />
+          <div className="space-y-2">
+            <ShimmerEffect className="h-4 w-24 rounded" />
+            <ShimmerEffect className="h-3 w-32 rounded" />
+          </div>
+        </div>
+        <div className="text-right space-y-2">
+          <ShimmerEffect className="h-5 w-16 rounded ml-auto" />
+          <ShimmerEffect className="h-3 w-20 rounded ml-auto" />
+        </div>
+      </div>
+      <div className="flex justify-between items-center">
+        <ShimmerEffect className="h-3 w-24 rounded" />
+        <ShimmerEffect className="h-3 w-16 rounded" />
+      </div>
+    </div>
+  );
+}
+
+function LocationInputs({ 
+  pickupLocation, 
+  dropLocation, 
+  onPickupChange, 
+  onDropChange, 
+  onBack,
+  suggestedLocations,
+  showSuggestions,
+  activeInput,
+  onLocationSelect,
+  isLocationChanging,
+  onGetCurrentLocation,
+  isGettingCurrentLocation
+}) {
   const [showPickupDropdown, setShowPickupDropdown] = useState(false);
   const [showDropDropdown, setShowDropDropdown] = useState(false);
   
@@ -96,12 +145,12 @@ function LocationInputs({ pickupLocation, dropLocation, onPickupChange, onDropCh
   };
   
   const handlePickupSelect = (address) => {
-    onPickupChange(address);
+    onLocationSelect('pickup', address);
     setShowPickupDropdown(false);
   };
-  
+
   const handleDropSelect = (address) => {
-    onDropChange(address);
+    onLocationSelect('drop', address);
     setShowDropDropdown(false);
   };
   
@@ -141,10 +190,18 @@ function LocationInputs({ pickupLocation, dropLocation, onPickupChange, onDropCh
               placeholder="U Block, DLF Phase 3, Sector 24, Gur..."
               className="font-['Poppins:Regular',_sans-serif] text-[#656565] text-[18px] bg-transparent border-none outline-none w-full placeholder:text-[#656565]"
             />
+            {isLocationChanging && activeInput === 'pickup' && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-[#CF923D] border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+            {isLocationChanging && activeInput === 'pickup' && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.5s_ease-in-out_infinite] rounded"></div>
+            )}
             <LocationDropdown
-              addresses={DUMMY_ADDRESSES}
+              addresses={suggestedLocations.length > 0 ? suggestedLocations : DUMMY_ADDRESSES}
               onSelect={handlePickupSelect}
-              isVisible={showPickupDropdown}
+              isVisible={showPickupDropdown && showSuggestions}
               searchTerm={pickupLocation}
             />
           </div>
@@ -169,10 +226,18 @@ function LocationInputs({ pickupLocation, dropLocation, onPickupChange, onDropCh
               placeholder="Home"
               className="font-['Poppins:Regular',_sans-serif] text-[#656565] text-[18px] bg-transparent border-none outline-none w-full placeholder:text-[#656565]"
             />
+            {isLocationChanging && activeInput === 'drop' && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-[#CF923D] border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+            {isLocationChanging && activeInput === 'drop' && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.5s_ease-in-out_infinite] rounded"></div>
+            )}
             <LocationDropdown
-              addresses={DUMMY_ADDRESSES}
+              addresses={suggestedLocations.length > 0 ? suggestedLocations : DUMMY_ADDRESSES}
               onSelect={handleDropSelect}
-              isVisible={showDropDropdown}
+              isVisible={showDropDropdown && showSuggestions}
               searchTerm={dropLocation}
             />
           </div>
@@ -204,7 +269,8 @@ function VehicleOption({
   pickupTime, 
   image, 
   isSelected, 
-  onSelect 
+  onSelect,
+  isShimmer = false
 }) {
   return (
     <button
@@ -237,10 +303,18 @@ function VehicleOption({
           
           <div className="text-right">
             <div className="font-['Poppins:Regular',_sans-serif] text-[#000000] text-[24px]">
-              {price}
+              {isShimmer ? (
+                <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_1.5s_ease-in-out_infinite] h-6 w-20 rounded ml-auto"></div>
+              ) : (
+                price
+              )}
             </div>
             <div className="font-['Poppins:Regular',_sans-serif] text-[#000000] text-[12px]">
-              {timeAway}
+              {isShimmer ? (
+                <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_1.5s_ease-in-out_infinite] h-3 w-16 rounded ml-auto"></div>
+              ) : (
+                timeAway
+              )}
             </div>
           </div>
         </div>
@@ -340,7 +414,7 @@ function PaymentSlider({ onPay }) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState(0);
   const [sliderWidth, setSliderWidth] = useState(0);
-  const sliderRef = useRef(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
   
   const SLIDE_THRESHOLD = 0.7; // 70% of slider width to trigger booking
   const CIRCLE_SIZE = 60; // Size of the draggable circle
@@ -364,7 +438,7 @@ function PaymentSlider({ onPay }) {
   };
 
   const handleMouseMove = (e) => {
-    if (!isDragging || isSliding) return;
+    if (!isDragging || isSliding || !sliderRef.current) return;
     
     const rect = sliderRef.current.getBoundingClientRect();
     const leftPadding = 10;
@@ -374,7 +448,7 @@ function PaymentSlider({ onPay }) {
   };
 
   const handleTouchMove = (e) => {
-    if (!isDragging || isSliding) return;
+    if (!isDragging || isSliding || !sliderRef.current) return;
     
     const rect = sliderRef.current.getBoundingClientRect();
     const touch = e.touches[0];
@@ -493,7 +567,7 @@ function PaymentSlider({ onPay }) {
 
 export default function RideBookingScreen({ onRideBooked, onBack }) {
   /*
-    🚀 FLUTTER API INTEGRATION - RIDE BOOKING SCREEN:
+    🚀 API INTEGRATION - RIDE BOOKING SCREEN:
     
     1. Location Services:
        - Use geolocator package for GPS location
@@ -502,7 +576,7 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
        - Handle location permission denied scenarios
        
     2. Map Integration:
-       - Use google_maps_flutter or mapbox_gl packages
+       - Use Google Maps JavaScript API or Mapbox GL JS
        - Display real-time user location
        - Show nearby vehicles/drivers
        - Route planning and visualization
@@ -542,8 +616,8 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
        - Network connectivity issues
        - Payment failures and retry logic
   */
-  const [pickupLocation, setPickupLocation] = useState("U Block, DLF Phase 3, Sector 24, Gur...");
-  const [dropLocation, setDropLocation] = useState("Home");
+  const [pickupLocation, setPickupLocation] = useState("YourPickup Location");
+  const [dropLocation, setDropLocation] = useState("Destination");
   const [selectedVehicle, setSelectedVehicle] = useState(0);
   const [driverCount, setDriverCount] = useState(1);
   const [needExtraDrivers, setNeedExtraDrivers] = useState(true);
@@ -552,26 +626,212 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
   const [dragStartTop, setDragStartTop] = useState(0);
-  const panelRef = useRef(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  
+  // API Integration State
+  const [pricingData, setPricingData] = useState<any>(null);
+  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
+  const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([]);
+  const [pickupCoords, setPickupCoords] = useState({ lat: 28.6139, lng: 77.2090 });
+  const [dropCoords, setDropCoords] = useState({ lat: 28.5355, lng: 77.3910 });
+  
+  // Location change state
+  const [isLocationChanging, setIsLocationChanging] = useState(false);
+  const [locationChangeTimeout, setLocationChangeTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [suggestedLocations, setSuggestedLocations] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeInput, setActiveInput] = useState<'pickup' | 'drop' | null>(null);
+  const [isGettingCurrentLocation, setIsGettingCurrentLocation] = useState(false);
 
+  // Geocoding function using Google Maps API
+  const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const result = await geocodingService.geocodeAddress(address);
+      if (result) {
+        return { lat: result.lat, lng: result.lng };
+      }
+      return null;
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      toast.error('Failed to find location. Please try a different address.');
+      return null;
+    }
+  };
+
+  // Get current location
+  const getCurrentLocation = async (type: 'pickup' | 'drop') => {
+    setIsGettingCurrentLocation(true);
+    try {
+      const result = await geocodingService.getCurrentLocation();
+      if (result) {
+        const address = result.formattedAddress;
+        if (type === 'pickup') {
+          setPickupLocation(address);
+          setPickupCoords({ lat: result.lat, lng: result.lng });
+        } else {
+          setDropLocation(address);
+          setDropCoords({ lat: result.lat, lng: result.lng });
+        }
+        toast.success('Current location detected!');
+      } else {
+        toast.error('Unable to detect current location');
+      }
+    } catch (error) {
+      console.error('Current location error:', error);
+      toast.error('Failed to get current location. Please enable location permissions.');
+    } finally {
+      setIsGettingCurrentLocation(false);
+    }
+  };
+
+  // Search for location suggestions using Google Places API
+  const searchLocations = async (query: string) => {
+    if (query.length < 2) {
+      setSuggestedLocations([]);
+      setShowSuggestions(false);
+      return;
+    }
+    
+    try {
+      const suggestions = await geocodingService.getPlaceSuggestions(query);
+      setSuggestedLocations(suggestions);
+      setShowSuggestions(true);
+    } catch (error) {
+      console.error('Location search error:', error);
+      // Fallback to dummy addresses if Google Places fails
+      const filtered = DUMMY_ADDRESSES.filter(addr => 
+        addr.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 5);
+      
+      setSuggestedLocations(filtered);
+      setShowSuggestions(true);
+    }
+  };
+
+  // Handle location change with debouncing
+  const handleLocationChange = (type: 'pickup' | 'drop', value: string) => {
+    if (type === 'pickup') {
+      setPickupLocation(value);
+    } else {
+      setDropLocation(value);
+    }
+    
+    setActiveInput(type);
+    setIsLocationChanging(true);
+    
+    // Clear existing timeout
+    if (locationChangeTimeout) {
+      clearTimeout(locationChangeTimeout);
+    }
+    
+    // Set new timeout for debounced search
+    const timeout = setTimeout(async () => {
+      await searchLocations(value);
+      setIsLocationChanging(false);
+    }, 500);
+    
+    setLocationChangeTimeout(timeout);
+  };
+
+  // Handle location selection from suggestions
+  const handleLocationSelect = async (type: 'pickup' | 'drop', address: string) => {
+    if (type === 'pickup') {
+      setPickupLocation(address);
+    } else {
+      setDropLocation(address);
+    }
+    
+    setShowSuggestions(false);
+    setActiveInput(null);
+    
+    // Geocode the selected address
+    const coords = await geocodeAddress(address);
+    if (coords) {
+      if (type === 'pickup') {
+        setPickupCoords(coords);
+      } else {
+        setDropCoords(coords);
+      }
+    }
+  };
+
+  // Fetch pricing data from API
+  const fetchPricingData = async () => {
+    if (!pickupCoords.lat || !dropCoords.lat) return;
+    
+    setIsLoadingPricing(true);
+    try {
+      const pricing = await pricingService.calculateFare({
+        pickupLat: pickupCoords.lat,
+        pickupLng: pickupCoords.lng,
+        dropLat: dropCoords.lat,
+        dropLng: dropCoords.lng,
+        vehicleType: 'SEDAN'
+      });
+      
+      setPricingData(pricing);
+      
+      // Fetch nearby drivers
+      const drivers = await pricingService.getNearbyDrivers(
+        pickupCoords.lat,
+        pickupCoords.lng,
+        5
+      );
+      
+      setNearbyDrivers(drivers);
+    } catch (error) {
+      console.error('Error fetching pricing data:', error);
+      toast.error('Failed to fetch pricing data');
+    } finally {
+      setIsLoadingPricing(false);
+    }
+  };
+
+  // Fetch pricing when coordinates change
+  useEffect(() => {
+    fetchPricingData();
+  }, [pickupCoords, dropCoords]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (locationChangeTimeout) {
+        clearTimeout(locationChangeTimeout);
+      }
+    };
+  }, [locationChangeTimeout]);
+
+  // Dynamic vehicles array with real pricing data
   const vehicles = [
     {
       type: 'bike',
       title: 'Bike Rescue',
       description: 'Pickup and drop you',
-      price: '₹150.00',
-      timeAway: '2 mins away',
-      pickupTime: '15:23',
-      image: `url('${imgFrame}'), url('${imgFrame1}')`
+      price: pricingData ? `₹${pricingData.totalFare.toFixed(2)}` : (isLoadingPricing ? 'Calculating...' : '₹150.00'),
+      timeAway: isLoadingPricing ? 'Calculating...' : (nearbyDrivers.length > 0 ? `${Math.floor(Math.random() * 5) + 1} mins away` : '2 mins away'),
+      isShimmer: isLoadingPricing,
+      pickupTime: new Date(Date.now() + 15 * 60000).toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      }),
+      image: `url('${imgFrame}'), url('${imgFrame1}')`,
+      isLoading: isLoadingPricing
     },
     {
       type: 'personal',
       title: 'Personal Driver',
       description: 'Pickup and drop you',
-      price: '₹200.00 / hr.',
-      timeAway: '2 mins away',
-      pickupTime: '15:23',
-      image: `url('${imgFrame2}'), url('${imgFrame3}')`
+      price: pricingData ? `₹${(pricingData.totalFare * 1.5).toFixed(2)} / hr.` : (isLoadingPricing ? 'Calculating...' : '₹200.00 / hr.'),
+      timeAway: isLoadingPricing ? 'Calculating...' : (nearbyDrivers.length > 0 ? `${Math.floor(Math.random() * 5) + 1} mins away` : '2 mins away'),
+      isShimmer: isLoadingPricing,
+      pickupTime: new Date(Date.now() + 15 * 60000).toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      }),
+      image: `url('${imgFrame2}'), url('${imgFrame3}')`,
+      isLoading: isLoadingPricing
     }
   ];
 
@@ -736,9 +996,16 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
       <LocationInputs
         pickupLocation={pickupLocation}
         dropLocation={dropLocation}
-        onPickupChange={setPickupLocation}
-        onDropChange={setDropLocation}
+        onPickupChange={(value) => handleLocationChange('pickup', value)}
+        onDropChange={(value) => handleLocationChange('drop', value)}
         onBack={onBack}
+        suggestedLocations={suggestedLocations}
+        showSuggestions={showSuggestions}
+        activeInput={activeInput}
+        onLocationSelect={handleLocationSelect}
+        isLocationChanging={isLocationChanging}
+        onGetCurrentLocation={getCurrentLocation}
+        isGettingCurrentLocation={isGettingCurrentLocation}
       />
 
       {/* Vehicle Selection Card */}
@@ -763,9 +1030,24 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
 
             {/* Header */}
             <div className="pb-4 border-b border-[#f0f0f0] mb-6">
-              <h2 className="font-['Poppins:Medium',_sans-serif] text-[#080a24] text-[28px] mb-2">
-                Select Ride
-              </h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="font-['Poppins:Medium',_sans-serif] text-[#080a24] text-[28px]">
+                  Select Ride
+                </h2>
+                {isLoadingPricing && (
+                  <div className="flex items-center gap-2 text-[#CF923D] text-[12px]">
+                    <div className="w-3 h-3 border border-[#CF923D] border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex items-center gap-1">
+                      <span>Updating prices</span>
+                      <div className="flex gap-1">
+                        <div className="w-1 h-1 bg-[#CF923D] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-1 h-1 bg-[#CF923D] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-1 h-1 bg-[#CF923D] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
               <p className="font-['Poppins:Regular',_sans-serif] text-[#656565] text-[16px]">
                 1st driver drops you 2nd driver delivers your car.
               </p>
@@ -774,7 +1056,14 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
 
           {/* Vehicle Options */}
           <div className="space-y-4 pb-8">
-            {vehicles.map((vehicle, index) => (
+            {isLoadingPricing ? (
+              // Show shimmer effect while loading
+              <>
+                <ShimmerVehicleCard />
+                <ShimmerVehicleCard />
+              </>
+            ) : (
+              vehicles.map((vehicle, index) => (
               <div key={index}>
                 <VehicleOption
                   {...vehicle}
@@ -796,7 +1085,8 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
                   </div>
                 )}
               </div>
-            ))}
+            ))
+            )}
             
             {/* Extra spacing for scroll content */}
             <div className="h-20 flex items-center justify-center">

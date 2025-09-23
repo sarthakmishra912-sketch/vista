@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import svgPaths from "../imports/svg-wh69x1kzst";
 import imgUber0213C7Cd81E2 from "figma:asset/0c4e8a4be75e7d129875490702ea90e0ae00c34d.png";
 import imgImage from "figma:asset/176ba6c12ab7f022834992fb78872f1e9feeb9a4.png";
@@ -81,7 +81,7 @@ export default function BookingLoaderScreen({
   onCancel,
 }) {
   /*
-    🚀 FLUTTER API INTEGRATION - BOOKING LOADER SCREEN:
+    🚀 API INTEGRATION - BOOKING LOADER SCREEN:
     
     1. Driver Matching WebSocket:
        - WebSocket: ws://your-api.com/driver-search/{ride_id}

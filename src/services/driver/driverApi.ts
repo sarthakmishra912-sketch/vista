@@ -54,8 +54,8 @@ interface DriverProfile {
 }
 
 class DriverApiService {
-  private baseUrl = process.env.REACT_APP_API_BASE_URL || 'https://api.raahi.com';
-  private apiKey = process.env.REACT_APP_API_KEY || 'your-api-key-here';
+  private baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+  private apiKey = import.meta.env.VITE_API_KEY || 'your-api-key-here';
 
   // Driver Registration
   async registerDriver(data: DriverRegistrationData): Promise<DriverRegistrationResponse> {

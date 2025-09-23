@@ -32,8 +32,10 @@ Utility functions and constants:
 ### `/imports/`
 Figma-imported assets and SVG paths
 
-### `/lib/` and `/main.dart`
-Flutter-specific files for mobile development
+### `/services/`
+API services and external integrations:
+- `driver/`: Driver-specific API services
+- `passenger/`: Passenger-specific API services
 
 ## Import Guidelines
 

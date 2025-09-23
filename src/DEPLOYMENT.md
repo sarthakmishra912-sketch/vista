@@ -1,78 +1,63 @@
-# 🚀 Raahi Flutter App - Deployment Guide
+# 🚀 Raahi Web App - Deployment Guide
 
-This guide covers deploying the Raahi Flutter app to production environments.
+This guide covers deploying the Raahi web app to production environments.
 
-## 📱 Mobile App Deployment
+## 🌐 Web App Deployment
 
-### Android Deployment
+### Static Site Deployment
 
-#### 1. **Prepare Release Build**
+#### 1. **Prepare Production Build**
 ```bash
-# Generate key for app signing
-keytool -genkey -v -keystore ~/raahi-release-key.keystore -name raahi -keyalg RSA -keysize 2048 -validity 10000
+# Build for production
+npm run build
 
-# Build signed APK
-flutter build apk --release
-
-# Build signed App Bundle (recommended for Play Store)
-flutter build appbundle --release
+# The build output will be in the 'dist' folder
+# This folder contains all static files ready for deployment
 ```
 
-#### 2. **Google Play Store**
+#### 2. **Vercel Deployment**
 ```bash
-# Create optimized release build
-flutter build appbundle --release --obfuscate --split-debug-info=debug-info/
+# Install Vercel CLI
+npm i -g vercel
 
-# Upload to Google Play Console
-# 1. Create new app in Play Console
-# 2. Upload the .aab file from build/app/outputs/bundle/release/
-# 3. Complete store listing with Raahi branding
-# 4. Set up release management
+# Deploy to Vercel
+vercel
+
+# Or connect your GitHub repository to Vercel for automatic deployments
+# 1. Go to vercel.com
+# 2. Import your GitHub repository
+# 3. Configure build settings (npm run build)
+# 4. Deploy automatically on every push to main branch
 ```
 
-#### 3. **Key Configuration**
-```properties
-# android/key.properties
-storePassword=your-keystore-password
-keyPassword=your-key-password  
-keyAlias=raahi
-storeFile=/path/to/raahi-release-key.keystore
-```
-
-### iOS Deployment
-
-#### 1. **Prepare iOS Build**
+#### 3. **Netlify Deployment**
 ```bash
-# Build for iOS
-flutter build ios --release
+# Install Netlify CLI
+npm i -g netlify-cli
 
-# Open in Xcode
-open ios/Runner.xcworkspace
+# Deploy to Netlify
+netlify deploy --prod --dir=dist
+
+# Or connect your GitHub repository to Netlify
+# 1. Go to netlify.com
+# 2. Import your GitHub repository
+# 3. Set build command: npm run build
+# 4. Set publish directory: dist
 ```
 
-#### 2. **App Store Connect**
+#### 4. **GitHub Pages Deployment**
 ```bash
-# Prerequisites:
-# - Apple Developer Account ($99/year)
-# - App Store Connect access
-# - Xcode 14+
+# Install gh-pages package
+npm install --save-dev gh-pages
 
-# Build and Archive in Xcode:
-# 1. Select "Any iOS Device" 
-# 2. Product → Archive
-# 3. Upload to App Store Connect
-# 4. Submit for review
-```
+# Add deploy script to package.json
+"scripts": {
+  "deploy": "gh-pages -d dist"
+}
 
-#### 3. **iOS Configuration**
-```xml
-<!-- ios/Runner/Info.plist -->
-<key>CFBundleDisplayName</key>
-<string>Raahi</string>
-<key>CFBundleIdentifier</key>
-<string>com.raahi.app</string>
-<key>CFBundleVersion</key>
-<string>1.0.0</string>
+# Deploy to GitHub Pages
+npm run build
+npm run deploy
 ```
 
 ## ⚙️ Environment Setup
@@ -80,28 +65,22 @@ open ios/Runner.xcworkspace
 ### Production Configuration
 
 #### 1. **API Endpoints**
-```dart
-// lib/config/prod_config.dart
-class ProdConfig {
-  static const String baseUrl = 'https://api.raahi.com';
-  static const String websocketUrl = 'wss://ws.raahi.com';
-  static const String googleMapsApiKey = 'your-prod-maps-key';
-}
+```typescript
+// src/config/prod.config.ts
+export const ProdConfig = {
+  baseUrl: 'https://api.raahi.com',
+  websocketUrl: 'wss://ws.raahi.com',
+  googleMapsApiKey: 'your-prod-maps-key',
+} as const;
 ```
 
-#### 2. **Third-Party Integrations**
-```yaml
-# pubspec.yaml - Production keys
-# Add these as environment variables or secure config
-
-google_sign_in:
-  client_id: "your-prod-google-client-id"
-  
-truecaller_sdk:
-  app_key: "your-prod-truecaller-key"
-  
-razorpay:
-  key_id: "your-prod-razorpay-key"
+#### 2. **Environment Variables**
+```bash
+# .env.production
+VITE_API_BASE_URL=https://api.raahi.com
+VITE_GOOGLE_CLIENT_ID=your-prod-google-client-id
+VITE_TRUECALLER_APP_KEY=your-prod-truecaller-key
+VITE_RAZORPAY_KEY_ID=your-prod-razorpay-key
 ```
 
 ### Firebase Setup (Optional)
@@ -116,82 +95,90 @@ firebase login
 firebase init
 
 # Add Firebase config files:
-# - android/app/google-services.json
-# - ios/Runner/GoogleService-Info.plist
+# - src/firebase.config.ts
+# - public/firebase-messaging-sw.js
 ```
 
 #### 2. **Firebase Features**
-```yaml
-# pubspec.yaml
-dependencies:
-  firebase_core: ^2.24.2
-  firebase_analytics: ^10.7.4
-  firebase_crashlytics: ^3.4.8
-  firebase_messaging: ^14.7.10
+```json
+{
+  "dependencies": {
+    "firebase": "^10.7.1",
+    "firebase/analytics": "^10.7.1",
+    "firebase/auth": "^10.7.1",
+    "firebase/firestore": "^10.7.1"
+  }
+}
 ```
 
 ## 🔒 Security & Performance
 
-### Code Obfuscation
+### Code Minification
 ```bash
-# Build with obfuscation
-flutter build apk --release --obfuscate --split-debug-info=debug-info/
-flutter build appbundle --release --obfuscate --split-debug-info=debug-info/
+# Build with minification (enabled by default in Vite)
+npm run build
+
+# The build process automatically:
+# - Minifies JavaScript and CSS
+# - Tree-shakes unused code
+# - Optimizes assets
 ```
 
-### ProGuard Configuration (Android)
-```properties
-# android/app/proguard-rules.pro
--keep class com.raahi.** { *; }
--keep class io.flutter.plugins.** { *; }
--keepclassmembers class * {
-    @androidx.annotation.Keep *;
-}
+### Content Security Policy
+```html
+<!-- public/index.html -->
+<meta http-equiv="Content-Security-Policy" 
+      content="default-src 'self'; 
+               script-src 'self' 'unsafe-inline' https://apis.google.com;
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+               font-src 'self' https://fonts.gstatic.com;">
 ```
 
-### Certificate Pinning
-```dart
-// lib/services/http_service.dart
-class HttpService {
-  static final dio = Dio();
-  
-  static void initializeCertificatePinning() {
-    // Implement certificate pinning for production
-    // Pin your API server's SSL certificate
-  }
+### HTTPS Configuration
+```typescript
+// src/services/api.service.ts
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.raahi.com';
+
+// Ensure all API calls use HTTPS
+if (!API_BASE_URL.startsWith('https://')) {
+  throw new Error('API base URL must use HTTPS in production');
 }
 ```
 
 ## 📊 Monitoring & Analytics
 
-### Crash Reporting
-```dart
-// main.dart
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+### Error Tracking
+```typescript
+// src/services/error.service.ts
+import { initializeApp } from 'firebase/app';
+import { getAnalytics, logEvent } from 'firebase/analytics';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+export const logError = (error: Error, context?: string) => {
+  console.error('Error:', error, context);
   
-  // Setup Crashlytics
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
-  
-  runApp(RaahiApp());
-}
+  // Send to error tracking service
+  logEvent(analytics, 'error_occurred', {
+    error_message: error.message,
+    error_stack: error.stack,
+    context: context || 'unknown'
+  });
+};
 ```
 
 ### Analytics Tracking
-```dart
-// lib/services/analytics_service.dart
-class AnalyticsService {
-  static final analytics = FirebaseAnalytics.instance;
-  
-  static Future<void> logRideBooking(String vehicleType) async {
-    await analytics.logEvent(
-      name: 'ride_booking',
-      parameters: {'vehicle_type': vehicleType},
-    );
-  }
-}
+```typescript
+// src/services/analytics.service.ts
+import { logEvent } from 'firebase/analytics';
+
+export const logRideBooking = (vehicleType: string) => {
+  logEvent(analytics, 'ride_booking', {
+    vehicle_type: vehicleType,
+    timestamp: new Date().toISOString()
+  });
+};
 ```
 
 ## 🔄 CI/CD Pipeline
@@ -199,137 +186,145 @@ class AnalyticsService {
 ### GitHub Actions Example
 ```yaml
 # .github/workflows/deploy.yml
-name: Deploy Raahi App
+name: Deploy Raahi Web App
 
 on:
   push:
     branches: [main]
 
 jobs:
-  build_android:
+  build_and_deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-node@v3
         with:
-          java-version: '11'
-      - uses: subosito/flutter-action@v2
+          node-version: '18'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v20
         with:
-          flutter-version: '3.16.0'
-      - run: flutter pub get
-      - run: flutter test
-      - run: flutter build apk --release
-      
-  build_ios:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
-      - run: flutter pub get
-      - run: flutter test
-      - run: flutter build ios --release --no-codesign
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.ORG_ID }}
+          vercel-project-id: ${{ secrets.PROJECT_ID }}
+          working-directory: ./
 ```
 
-### Fastlane Integration
-```ruby
-# android/fastlane/Fastfile
-default_platform(:android)
-
-platform :android do
-  desc "Deploy to Play Store"
-  lane :deploy do
-    gradle(task: "clean bundleRelease")
-    upload_to_play_store(
-      track: 'production',
-      aab: '../build/app/outputs/bundle/release/app-release.aab'
-    )
-  end
-end
-```
-
-## 📱 App Store Optimization
-
-### App Store Metadata
-
-#### Google Play Store
+### Netlify Integration
 ```yaml
-Title: "Raahi - Cab Booking App"
-Short Description: "Butter to your जाम - Premium cab booking"
-Full Description: |
-  Experience seamless cab booking with Raahi - the premium transportation app 
-  that makes every journey smooth as butter!
-  
-  🚗 Features:
-  - Multiple login options (Truecaller, Google, Mobile OTP)
-  - Real-time driver tracking
-  - Multiple vehicle options
-  - Secure payments
-  - 24/7 customer support
+# netlify.toml
+[build]
+  command = "npm run build"
+  publish = "dist"
 
-Keywords: "cab booking, taxi app, ride sharing, transportation, Raahi"
+[build.environment]
+  NODE_VERSION = "18"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 ```
 
-#### App Store Connect
-```yaml
-App Name: "Raahi - Cab Booking"
-Subtitle: "Butter to your जाम"
-Keywords: "cab,taxi,ride,booking,transportation,raahi"
-Description: |
-  Raahi brings you the smoothest cab booking experience in Delhi NCR.
-  
-  KEY FEATURES:
-  • Quick booking with multiple vehicle options
-  • Real-time driver tracking and ETA
-  • Secure payment integration
-  • 24/7 customer support
-  • Premium ride experience
+## 🔍 SEO Optimization
+
+### Meta Tags and SEO
+
+#### HTML Meta Tags
+```html
+<!-- public/index.html -->
+<title>Raahi - Cab Booking App | Butter to your जाम</title>
+<meta name="description" content="Experience seamless cab booking with Raahi - the premium transportation app that makes every journey smooth as butter! Multiple login options, real-time tracking, and secure payments.">
+<meta name="keywords" content="cab booking, taxi app, ride sharing, transportation, Raahi, Delhi NCR">
+<meta name="author" content="Raahi">
+<meta property="og:title" content="Raahi - Cab Booking App">
+<meta property="og:description" content="Butter to your जाम - Premium cab booking experience">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://raahi.com">
+<meta property="og:image" content="https://raahi.com/og-image.jpg">
 ```
 
-### App Screenshots
+#### Sitemap and Robots
+```xml
+<!-- public/sitemap.xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://raahi.com/</loc>
+    <lastmod>2024-01-01</lastmod>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://raahi.com/booking</loc>
+    <lastmod>2024-01-01</lastmod>
+    <priority>0.8</priority>
+  </url>
+</urlset>
+```
+
+### Performance Optimization
 ```bash
-# Required screenshot sizes:
-# Android: 
-# - Phone: 1080x1920 (minimum)
-# - Tablet: 2560x1800
+# Lighthouse audit for performance
+npm install -g lighthouse
+lighthouse https://raahi.com --output html --output-path ./lighthouse-report.html
 
-# iOS:
-# - iPhone: 1290x2796 (iPhone 14 Pro Max)
-# - iPad: 2048x2732 (12.9" iPad Pro)
+# Core Web Vitals to monitor:
+# - Largest Contentful Paint (LCP) < 2.5s
+# - First Input Delay (FID) < 100ms
+# - Cumulative Layout Shift (CLS) < 0.1
 ```
 
 ## 🔧 Post-Deployment
 
 ### Version Management
-```yaml
-# pubspec.yaml
-version: 1.0.0+1  # version+build_number
-
-# For updates:
-version: 1.0.1+2  # Increment version and build number
+```json
+{
+  "name": "raahi-web-app",
+  "version": "1.0.0",
+  "scripts": {
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major"
+  }
+}
 ```
 
 ### Rollback Strategy
 ```bash
 # If issues arise, rollback steps:
-# 1. Stop release rollout in Play Console
-# 2. Upload previous stable version
-# 3. Investigate and fix issues
-# 4. Re-deploy with fixes
+# 1. Revert to previous commit
+git revert <commit-hash>
+
+# 2. Rebuild and redeploy
+npm run build
+npm run deploy
+
+# 3. Or use deployment platform's rollback feature
+# Vercel: Dashboard → Deployments → Rollback
+# Netlify: Dashboard → Deploys → Rollback
 ```
 
 ### User Feedback Monitoring
-```dart
-// In-app review prompting
-import 'package:in_app_review/in_app_review.dart';
+```typescript
+// In-app feedback collection
+export const requestFeedback = () => {
+  // Show feedback modal or redirect to feedback form
+  const feedbackUrl = 'https://forms.gle/your-feedback-form';
+  window.open(feedbackUrl, '_blank');
+};
 
-class ReviewService {
-  static Future<void> requestReview() async {
-    final InAppReview inAppReview = InAppReview.instance;
-    if (await inAppReview.isAvailable()) {
-      inAppReview.requestReview();
-    }
+// Google Analytics events for user behavior
+export const trackUserAction = (action: string, category: string) => {
+  if (typeof gtag !== 'undefined') {
+    gtag('event', action, {
+      event_category: category,
+      event_label: 'user_interaction'
+    });
   }
-}
+};
 ```
 
 ---
@@ -337,23 +332,31 @@ class ReviewService {
 ## 📞 Production Support
 
 ### Monitoring Checklist
-- [ ] App crash rates < 1%
-- [ ] Average app startup time < 3 seconds
+- [ ] Website uptime > 99.9%
+- [ ] Page load times < 3 seconds
 - [ ] API response times < 2 seconds
 - [ ] User retention rates
 - [ ] Ride completion rates
 - [ ] Payment success rates
+- [ ] Core Web Vitals within acceptable ranges
 
 ### Emergency Response
-```dart
+```typescript
 // Feature flags for emergency shutdowns
-class FeatureFlags {
-  static bool get isRideBookingEnabled => true; // Can be controlled remotely
-  static bool get isPaymentEnabled => true;
-  static bool get isTrackingEnabled => true;
-}
+export const FeatureFlags = {
+  isRideBookingEnabled: true, // Can be controlled remotely
+  isPaymentEnabled: true,
+  isTrackingEnabled: true,
+  maintenanceMode: false
+} as const;
+
+// Emergency maintenance mode
+export const enableMaintenanceMode = () => {
+  // Redirect to maintenance page or show maintenance message
+  window.location.href = '/maintenance';
+};
 ```
 
-**📱 Your Flutter app is ready for production deployment!**
+**🌐 Your web app is ready for production deployment!**
 
-*Remember: Always test thoroughly on real devices before releasing to production.*
+*Remember: Always test thoroughly across different browsers and devices before releasing to production.*

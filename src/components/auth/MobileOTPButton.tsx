@@ -7,7 +7,7 @@ interface MobileOTPButtonProps {
 export default function MobileOTPButton({ onLogin }: MobileOTPButtonProps) {
   const handleMobileOTPLogin = () => {
     /*
-      🚀 FLUTTER API INTEGRATION - MOBILE OTP LOGIN:
+      🚀 API INTEGRATION - MOBILE OTP LOGIN:
       
       1. Phone Number Input:
          - Use intl_phone_field package for country codes

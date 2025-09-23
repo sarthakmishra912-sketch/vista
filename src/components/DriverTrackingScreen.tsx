@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { toast } from "sonner@2.0.3";
+import React, { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { rideService } from '../services/rideService';
 import svgPaths from "../imports/svg-2aj2wlduut";
 import imgFrame from "figma:asset/516e77515feb8b0da14eb9d08100d04603ad8beb.png";
 import imgUber0213C7Cd81E2 from "figma:asset/0c4e8a4be75e7d129875490702ea90e0ae00c34d.png";
@@ -8,7 +9,7 @@ import imgRectangle8 from "figma:asset/71252cca4c888d88500481199a8e5e20a4996b73.
 import imgImage from "figma:asset/176ba6c12ab7f022834992fb78872f1e9feeb9a4.png";
 
 /*
-  🚀 FLUTTER API INTEGRATION POINTS:
+  🚀 API INTEGRATION POINTS:
   
   1. Real-time Driver Location Updates:
      - Use WebSocket connection to track driver's GPS location
@@ -41,7 +42,7 @@ function StatusIndicator() {
 
 function DriverCard({ driver, otp, pickupLocation, onCancel }) {
   /*
-    🔄 FLUTTER API INTEGRATION:
+    🔄 API INTEGRATION:
     
     Driver Data Updates:
     - API: GET /api/drivers/{driver_id}
@@ -80,7 +81,7 @@ function DriverCard({ driver, otp, pickupLocation, onCancel }) {
     
     try {
       /*
-        🚀 FLUTTER API INTEGRATION - SEND MESSAGE:
+        🚀 API INTEGRATION - SEND MESSAGE:
         
         1. Message API Call:
            - API: POST /api/rides/{ride_id}/messages
@@ -177,23 +178,23 @@ function DriverCard({ driver, otp, pickupLocation, onCancel }) {
         <div className="flex-1">
           <div className="flex items-center justify-between mb-1">
             <h3 className="font-['Poppins:Medium',_sans-serif] text-[18px] text-[#11211e]">
-              {driver?.name || "SANTH"}
+              {realDriverData?.name || driver?.name || "Loading..."}
             </h3>
             <div className="flex items-center gap-1">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#cf923d">
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
               <span className="font-['Poppins:Medium',_sans-serif] text-[14px] text-[#11211e]">
-                {driver?.rating || "4.9"}
+                {realDriverData?.rating || driver?.rating || "4.9"}
               </span>
             </div>
           </div>
           
           <div className="text-[#11211e] font-['Poppins:Medium',_sans-serif] text-[16px] mb-1">
-            {driver?.vehicle || "KA15AK00-0"}
+            {realDriverData?.vehicleNumber || driver?.vehicle || "Loading..."}
           </div>
           <div className="text-[#606060] text-[14px]">
-            {driver?.vehicleModel || "White Suzuki S-Presso LXI"}
+            {realDriverData?.vehicleModel || driver?.vehicleModel || "Loading..."}
           </div>
         </div>
       </div>
@@ -265,7 +266,7 @@ function DriverCard({ driver, otp, pickupLocation, onCancel }) {
           <span className="font-['Poppins:Medium',_sans-serif] text-[16px]">
             <span className="text-[#cf923d]">OTP</span>
             <span className="text-[#333333]"> : </span>
-            <span className="text-[#11211e]">{otp || "2323"}</span>
+            <span className="text-[#11211e]">{realOtp || otp || "2323"}</span>
           </span>
         </div>
       </div>
@@ -321,7 +322,7 @@ function DriverCard({ driver, otp, pickupLocation, onCancel }) {
             // - Use native phone app to call driver
             // - Log call duration for support purposes
             // - API: POST /api/rides/{ride_id}/call-log
-            const phoneNumber = driver?.phone || "+91 98765 43210";
+            const phoneNumber = realDriverData?.phone || driver?.phone || "+91 98765 43210";
             toast.info("Calling driver...", {
               description: `Connecting to ${phoneNumber}`,
               duration: 2000,
@@ -343,7 +344,7 @@ function DriverCard({ driver, otp, pickupLocation, onCancel }) {
           className="w-full bg-[#ff4757] hover:bg-[#ff3742] active:bg-[#ff2636] text-white py-4 px-6 rounded-xl font-['Poppins:Medium',_sans-serif] text-[16px] transition-colors duration-200 shadow-lg hover:shadow-xl active:scale-98 flex items-center justify-center text-center"
           onClick={() => {
             /*
-              🚀 FLUTTER API INTEGRATION - CANCEL RIDE:
+              🚀 API INTEGRATION - CANCEL RIDE:
               
               1. Ride Cancellation API:
                  - API: POST /api/rides/{ride_id}/cancel
@@ -420,7 +421,7 @@ export default function DriverTrackingScreen({
   onCancel,
 }) {
   /*
-    🗺️ FLUTTER API INTEGRATION - MAIN SCREEN:
+    🗺️ API INTEGRATION - MAIN SCREEN:
     
     1. Map Integration:
        - Use Google Maps SDK or Mapbox
@@ -450,9 +451,72 @@ export default function DriverTrackingScreen({
 
   const [tripStatus, setTripStatus] = useState('driver_assigned'); // driver_assigned, approaching, arrived, trip_started, completed
   const [eta, setEta] = useState('2 min');
+  const [realDriverData, setRealDriverData] = useState<any>(null);
+  const [isLoadingDriver, setIsLoadingDriver] = useState(false);
+  const [rideId, setRideId] = useState<string | null>(null);
+  const [realOtp, setRealOtp] = useState<string | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+
+  // Generate OTP for ride verification
+  const generateOTP = () => {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  };
+
+  // Fetch real driver data from API
+  const fetchDriverData = async () => {
+    if (!rideId) return;
+    
+    setIsLoadingDriver(true);
+    try {
+      const rideData = await rideService.getRideById(rideId);
+      if (rideData.driver) {
+        setRealDriverData(rideData.driver);
+      }
+      
+      // Generate OTP for this ride
+      const otp = generateOTP();
+      setRealOtp(otp);
+    } catch (error) {
+      console.error('Error fetching driver data:', error);
+      toast.error('Failed to fetch driver data');
+    } finally {
+      setIsLoadingDriver(false);
+    }
+  };
+
+  // Initialize ride ID from props or create a new ride
+  useEffect(() => {
+    if (driver?.rideId) {
+      setRideId(driver.rideId);
+    } else {
+      // Create a new ride for tracking
+      const createRide = async () => {
+        try {
+          const newRide = await rideService.createRide({
+            pickupLat: 28.6139,
+            pickupLng: 77.2090,
+            dropLat: 28.5355,
+            dropLng: 77.3910,
+            vehicleType: 'SEDAN'
+          });
+          setRideId(newRide.id);
+        } catch (error) {
+          console.error('Error creating ride:', error);
+        }
+      };
+      createRide();
+    }
+  }, [driver]);
+
+  // Fetch driver data when ride ID is available
+  useEffect(() => {
+    if (rideId) {
+      fetchDriverData();
+    }
+  }, [rideId]);
 
   useEffect(() => {
-    // TODO: Implement real-time trip status updates
+    // Real-time trip status updates
     // This would connect to WebSocket for live updates
     // Example: ws://your-api.com/trip-status/{ride_id}
     

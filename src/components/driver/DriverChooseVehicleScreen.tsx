@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import svgPaths from "../../imports/svg-pvhi2toqrz";
 import img3ChooseVehicle from "figma:asset/176ba6c12ab7f022834992fb78872f1e9feeb9a4.png";
 

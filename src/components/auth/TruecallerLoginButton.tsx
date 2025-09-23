@@ -8,11 +8,11 @@ interface TruecallerLoginButtonProps {
 export default function TruecallerLoginButton({ onLogin }: TruecallerLoginButtonProps) {
   const handleTruecallerLogin = () => {
     /*
-      🚀 FLUTTER API INTEGRATION - TRUECALLER LOGIN:
+      🚀 API INTEGRATION - TRUECALLER LOGIN:
       
       1. Truecaller SDK Integration:
-         - Add truecaller_sdk package to pubspec.yaml
-         - Initialize SDK with API key in main.dart
+         - Add truecaller SDK to package.json dependencies
+         - Initialize SDK with API key in main.tsx
          - Handle automatic phone number verification
          
       2. Backend API Calls:
@@ -28,7 +28,7 @@ export default function TruecallerLoginButton({ onLogin }: TruecallerLoginButton
       4. Security:
          - Validate Truecaller token on backend
          - Implement rate limiting for OTP requests
-         - Store tokens securely using flutter_secure_storage
+         - Store tokens securely using localStorage or sessionStorage
     */
     console.log("Truecaller login clicked");
     

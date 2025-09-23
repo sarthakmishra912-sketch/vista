@@ -134,7 +134,7 @@ function Footer() {
 
 export default function ContactNumberScreen({ onSubmit, onBack }) {
   /*
-    🚀 FLUTTER API INTEGRATION - CONTACT NUMBER SCREEN:
+    🚀 API INTEGRATION - CONTACT NUMBER SCREEN:
     
     1. Phone Number Validation:
        - Use libphonenumber for international validation

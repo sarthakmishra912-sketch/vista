@@ -49,7 +49,7 @@ export const PerformanceMonitor: React.FC<{
 }> = ({ componentName, showMetrics = false }) => {
   const metrics = usePerformanceMonitor(componentName);
 
-  if (!showMetrics || process.env.NODE_ENV === 'production') {
+  if (!showMetrics || import.meta.env.PROD) {
     return null;
   }
 
