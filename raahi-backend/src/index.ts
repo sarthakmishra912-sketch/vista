@@ -96,6 +96,7 @@ app.use('/api/realtime', realTimeRoutes);
 io.on('connection', (socket) => {
   logger.info(`Client connected: ${socket.id}`);
   
+  // Handle ride room joining
   socket.on('join-ride', (rideId) => {
     socket.join(`ride-${rideId}`);
     logger.info(`Client ${socket.id} joined ride ${rideId}`);
@@ -104,6 +105,71 @@ io.on('connection', (socket) => {
   socket.on('leave-ride', (rideId) => {
     socket.leave(`ride-${rideId}`);
     logger.info(`Client ${socket.id} left ride ${rideId}`);
+  });
+
+  // Handle driver room joining
+  socket.on('join-driver', (driverId) => {
+    socket.join(`driver-${driverId}`);
+    logger.info(`Driver ${driverId} connected with socket ${socket.id}`);
+  });
+
+  socket.on('leave-driver', (driverId) => {
+    socket.leave(`driver-${driverId}`);
+    logger.info(`Driver ${driverId} disconnected from socket ${socket.id}`);
+  });
+
+  // Handle ride request acceptance
+  socket.on('accept-ride-request', async (data) => {
+    try {
+      const { rideId, driverId } = data;
+      logger.info(`Driver ${driverId} accepting ride ${rideId}`);
+      
+      // Emit to passenger that driver accepted
+      io.to(`ride-${rideId}`).emit('ride-accepted', {
+        rideId,
+        driverId,
+        timestamp: new Date().toISOString()
+      });
+
+      // Notify other drivers (excluding the accepting driver) that ride is taken
+      socket.broadcast.emit('ride-taken', {
+        rideId,
+        driverId,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Error handling ride acceptance:', error);
+    }
+  });
+
+  // Handle ride request rejection
+  socket.on('reject-ride-request', (data) => {
+    try {
+      const { rideId, driverId } = data;
+      logger.info(`Driver ${driverId} rejected ride ${rideId}`);
+      
+      // Could implement logic to find next available driver
+      // For now, just log the rejection
+    } catch (error) {
+      logger.error('Error handling ride rejection:', error);
+    }
+  });
+
+  // Handle driver arrival notification
+  socket.on('driver-arrived', (data) => {
+    try {
+      const { rideId, driverId } = data;
+      logger.info(`Driver ${driverId} arrived at pickup for ride ${rideId}`);
+      
+      // Notify passenger that driver has arrived
+      io.to(`ride-${rideId}`).emit('driver-arrived', {
+        rideId,
+        driverId,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Error handling driver arrival:', error);
+    }
   });
   
   socket.on('disconnect', () => {

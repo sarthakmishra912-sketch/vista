@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { rideAPI } from "../services/api";
+import { realTimeService } from "../services/realTimeService";
 import svgPaths from "../imports/svg-wh69x1kzst";
 import imgUber0213C7Cd81E2 from "figma:asset/0c4e8a4be75e7d129875490702ea90e0ae00c34d.png";
 import imgImage from "figma:asset/176ba6c12ab7f022834992fb78872f1e9feeb9a4.png";
@@ -139,31 +141,76 @@ export default function BookingLoaderScreen({
       setSearchTime((prev) => prev + 1);
     }, 1000);
 
-    // Simulate driver found after 8-15 seconds
-    const driverFoundTimer = setTimeout(
-      () => {
-        toast.success("Driver found!", {
-          description: "Your driver is on the way",
-          duration: 3000,
-        });
+    // Create real ride request
+    const createRideTimer = setTimeout(async () => {
+      try {
+        console.log('🚖 Creating ride request...');
+        console.log('📍 Pickup:', pickupLocation);
+        console.log('📍 Drop:', dropLocation);
+        console.log('🚗 Vehicle:', selectedVehicle);
 
-        if (onDriverFound) {
-          onDriverFound({
-            name: "Rajesh Kumar",
-            phone: "+91 98765 43210",
-            vehicle: "KA 01 AB 1234",
-            rating: 4.8,
-            eta: "5 mins",
+        // Connect to WebSocket
+        realTimeService.connect();
+
+        // Create the ride
+        const rideRequest = {
+          pickupLat: 28.6139, // Default coordinates for testing
+          pickupLng: 77.2090,
+          dropLat: 28.5355,
+          dropLng: 77.3910,
+          pickupAddress: pickupLocation || 'Connaught Place, New Delhi',
+          dropAddress: dropLocation || 'India Gate, New Delhi',
+          paymentMethod: 'CASH',
+          vehicleType: 'SEDAN'
+        };
+
+        const response = await rideAPI.createRide(rideRequest);
+        
+        if (response.success && response.data) {
+          console.log('✅ Ride created successfully:', response.data.id);
+          
+          // Join ride room for updates
+          realTimeService.joinRideRoom(response.data.id);
+          
+          // Listen for driver acceptance
+          realTimeService.onRideAccepted((data) => {
+            console.log('🎉 Driver accepted the ride!', data);
+            if (onDriverFound) {
+              onDriverFound({
+                id: data.driverId,
+                name: 'Driver Name',
+                rating: 4.8,
+                vehicle: 'Honda City',
+                phone: '+91 98765 43210',
+                rideId: response.data.id // Pass the ride ID
+              });
+            }
+          });
+
+          toast.success("Ride request sent to drivers!", {
+            description: "Looking for nearby drivers...",
+            duration: 3000,
+          });
+        } else {
+          console.error('❌ Failed to create ride:', response.message);
+          toast.error("Failed to create ride", {
+            description: response.message || "Please try again",
+            duration: 3000,
           });
         }
-      },
-      Math.random() * 7000 + 8000,
-    ); // 8-15 seconds
+      } catch (error) {
+        console.error('❌ Error creating ride:', error);
+        toast.error("Error creating ride", {
+          description: "Please try again",
+          duration: 3000,
+        });
+      }
+    }, 2000); // Create ride after 2 seconds
 
     return () => {
       clearInterval(dotsInterval);
       clearInterval(timeInterval);
-      clearTimeout(driverFoundTimer);
+      clearTimeout(createRideTimer);
     };
   }, [onDriverFound]);
 

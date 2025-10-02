@@ -1,232 +1,198 @@
-import { apiClient } from './api';
-
-export interface RealTimeStats {
-  totalDrivers: number;
-  onlineDrivers: number;
-  activeRides: number;
-  completedRidesToday: number;
-  averageWaitTime: number;
-  surgeAreas: number;
-}
-
-export interface LocationStats {
-  lat: number;
-  lng: number;
-  radius: number;
-  availableDrivers: number;
-  activeRides: number;
-  demandRatio: number;
-  averageFare: number;
-}
-
-export interface DriverHeatmapData {
-  lat: number;
-  lng: number;
-  count: number;
-}
-
-export interface DemandHotspot {
-  lat: number;
-  lng: number;
-  demand: number;
-}
+// Real-time WebSocket service for ride requests and updates
+import { io, Socket } from 'socket.io-client';
 
 class RealTimeService {
-  private static instance: RealTimeService;
-  private websocket: WebSocket | null = null;
-  private eventListeners: Map<string, Function[]> = new Map();
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private socket: Socket | null = null;
+  private isConnected = false;
 
-  private constructor() {}
-
-  static getInstance(): RealTimeService {
-    if (!RealTimeService.instance) {
-      RealTimeService.instance = new RealTimeService();
-    }
-    return RealTimeService.instance;
-  }
-
-  // WebSocket connection
+  // Initialize WebSocket connection
   connect(): void {
-    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+    if (this.socket && this.isConnected) {
+      console.log('🚀 WebSocket already connected');
       return;
     }
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:5001';
-    this.websocket = new WebSocket(wsUrl);
+    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+    console.log('🚀 Connecting to WebSocket server:', serverUrl);
 
-    this.websocket.onopen = () => {
-      console.log('Real-time WebSocket connected');
-      this.reconnectAttempts = 0;
-    };
+    this.socket = io(serverUrl, {
+      transports: ['websocket', 'polling'],
+      timeout: 20000,
+      forceNew: true
+    });
 
-    this.websocket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        this.handleMessage(data);
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
+    this.socket.on('connect', () => {
+      this.isConnected = true;
+      console.log('✅ WebSocket connected:', this.socket?.id);
+    });
 
-    this.websocket.onclose = () => {
-      console.log('Real-time WebSocket disconnected');
-      this.attemptReconnect();
-    };
+    this.socket.on('disconnect', () => {
+      this.isConnected = false;
+      console.log('❌ WebSocket disconnected');
+    });
 
-    this.websocket.onerror = (error) => {
-      console.error('Real-time WebSocket error:', error);
-    };
+    this.socket.on('connect_error', (error) => {
+      console.error('❌ WebSocket connection error:', error);
+      this.isConnected = false;
+    });
   }
 
-  private attemptReconnect(): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
-      setTimeout(() => {
-        this.connect();
-      }, this.reconnectDelay * this.reconnectAttempts);
-    } else {
-      console.error('Max reconnection attempts reached');
-    }
-  }
-
-  private handleMessage(data: any): void {
-    switch (data.type) {
-      case 'ride-status-update':
-        this.emit('rideStatusUpdate', data);
-        break;
-      case 'driver-location-update':
-        this.emit('driverLocationUpdate', data);
-        break;
-      case 'driver-assigned':
-        this.emit('driverAssigned', data);
-        break;
-      case 'ride-cancelled':
-        this.emit('rideCancelled', data);
-        break;
-      default:
-        console.log('Unknown real-time message type:', data.type);
-    }
-  }
-
-  // Event listener management
-  on(event: string, callback: Function): void {
-    if (!this.eventListeners.has(event)) {
-      this.eventListeners.set(event, []);
-    }
-    this.eventListeners.get(event)!.push(callback);
-  }
-
-  off(event: string, callback: Function): void {
-    const listeners = this.eventListeners.get(event);
-    if (listeners) {
-      const index = listeners.indexOf(callback);
-      if (index > -1) {
-        listeners.splice(index, 1);
-      }
-    }
-  }
-
-  private emit(event: string, data: any): void {
-    const listeners = this.eventListeners.get(event);
-    if (listeners) {
-      listeners.forEach(callback => callback(data));
-    }
-  }
-
-  // API methods
-  async getRealTimeStats(): Promise<RealTimeStats> {
-    try {
-      const response = await apiClient.getStats();
-      if (response.success && response.data) {
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to get real-time stats');
-      }
-    } catch (error) {
-      console.error('Get real-time stats error:', error);
-      throw error;
-    }
-  }
-
-  async getLocationStats(
-    lat: number,
-    lng: number,
-    radius: number = 5
-  ): Promise<LocationStats> {
-    try {
-      const response = await apiClient.getLocationStats(lat, lng, radius);
-      if (response.success && response.data) {
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to get location stats');
-      }
-    } catch (error) {
-      console.error('Get location stats error:', error);
-      throw error;
-    }
-  }
-
-  async getDriverHeatmapData(): Promise<DriverHeatmapData[]> {
-    try {
-      const response = await apiClient.getDriverHeatmap();
-      if (response.success && response.data) {
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to get driver heatmap data');
-      }
-    } catch (error) {
-      console.error('Get driver heatmap error:', error);
-      throw error;
-    }
-  }
-
-  async getDemandHotspots(): Promise<DemandHotspot[]> {
-    try {
-      const response = await apiClient.getDemandHotspots();
-      if (response.success && response.data) {
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to get demand hotspots');
-      }
-    } catch (error) {
-      console.error('Get demand hotspots error:', error);
-      throw error;
-    }
-  }
-
-  // WebSocket methods
-  joinRideRoom(rideId: string): void {
-    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      this.websocket.send(JSON.stringify({
-        type: 'join-ride',
-        rideId
-      }));
-    }
-  }
-
-  leaveRideRoom(rideId: string): void {
-    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      this.websocket.send(JSON.stringify({
-        type: 'leave-ride',
-        rideId
-      }));
-    }
-  }
-
-  // Cleanup
+  // Disconnect WebSocket
   disconnect(): void {
-    if (this.websocket) {
-      this.websocket.close();
-      this.websocket = null;
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+      this.isConnected = false;
+      console.log('🔌 WebSocket disconnected');
     }
-    this.eventListeners.clear();
+  }
+
+  // Join driver room for receiving ride requests
+  joinDriverRoom(driverId: string): void {
+    if (!this.socket || !this.isConnected) {
+      console.error('❌ WebSocket not connected');
+      return;
+    }
+
+    this.socket.emit('join-driver', driverId);
+    console.log('🚗 Joined driver room:', driverId);
+  }
+
+  // Leave driver room
+  leaveDriverRoom(driverId: string): void {
+    if (!this.socket || !this.isConnected) {
+      return;
+    }
+
+    this.socket.emit('leave-driver', driverId);
+    console.log('🚗 Left driver room:', driverId);
+  }
+
+  // Join ride room for passenger updates
+  joinRideRoom(rideId: string): void {
+    if (!this.socket || !this.isConnected) {
+      console.error('❌ WebSocket not connected');
+      return;
+    }
+
+    this.socket.emit('join-ride', rideId);
+    console.log('🚖 Joined ride room:', rideId);
+  }
+
+  // Leave ride room
+  leaveRideRoom(rideId: string): void {
+    if (!this.socket || !this.isConnected) {
+      return;
+    }
+
+    this.socket.emit('leave-ride', rideId);
+    console.log('🚖 Left ride room:', rideId);
+  }
+
+  // Accept a ride request
+  acceptRideRequest(rideId: string, driverId: string): void {
+    if (!this.socket || !this.isConnected) {
+      console.error('❌ WebSocket not connected');
+      return;
+    }
+
+    this.socket.emit('accept-ride-request', { rideId, driverId });
+    console.log('✅ Accepted ride request:', rideId);
+  }
+
+  // Reject a ride request
+  rejectRideRequest(rideId: string, driverId: string): void {
+    if (!this.socket || !this.isConnected) {
+      console.error('❌ WebSocket not connected');
+      return;
+    }
+
+    this.socket.emit('reject-ride-request', { rideId, driverId });
+    console.log('❌ Rejected ride request:', rideId);
+  }
+
+  // Notify passenger that driver has arrived
+  notifyPassengerArrival(rideId: string, driverId: string): void {
+    if (!this.socket || !this.isConnected) {
+      console.error('❌ WebSocket not connected');
+      return;
+    }
+
+    this.socket.emit('driver-arrived', { rideId, driverId });
+    console.log('🚗 Notified passenger of arrival:', rideId);
+  }
+
+  // Listen for new ride requests (for drivers)
+  onNewRideRequest(callback: (rideRequest: any) => void): void {
+    if (!this.socket) {
+      console.error('❌ WebSocket not initialized');
+      return;
+    }
+
+    this.socket.on('new-ride-request', (rideRequest) => {
+      console.log('🚨 NEW RIDE REQUEST RECEIVED:', rideRequest);
+      callback(rideRequest);
+    });
+  }
+
+  // Listen for ride acceptance (for passengers)
+  onRideAccepted(callback: (data: any) => void): void {
+    if (!this.socket) {
+      console.error('❌ WebSocket not initialized');
+      return;
+    }
+
+    this.socket.on('ride-accepted', (data) => {
+      console.log('✅ RIDE ACCEPTED:', data);
+      callback(data);
+    });
+  }
+
+  // Listen for ride taken notifications (for other drivers)
+  onRideTaken(callback: (data: any) => void): void {
+    if (!this.socket) {
+      console.error('❌ WebSocket not initialized');
+      return;
+    }
+
+    this.socket.on('ride-taken', (data) => {
+      console.log('🚫 RIDE TAKEN BY ANOTHER DRIVER:', data);
+      callback(data);
+    });
+  }
+
+  // Listen for ride status updates
+  onRideStatusUpdate(callback: (data: any) => void): void {
+    if (!this.socket) {
+      console.error('❌ WebSocket not initialized');
+      return;
+    }
+
+    this.socket.on('ride-status-update', (data) => {
+      console.log('📱 RIDE STATUS UPDATE:', data);
+      callback(data);
+    });
+  }
+
+  // Remove all listeners
+  removeAllListeners(): void {
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      console.log('🧹 Removed all WebSocket listeners');
+    }
+  }
+
+  // Get connection status
+  getConnectionStatus(): boolean {
+    return this.isConnected;
+  }
+
+  // Get socket instance
+  getSocket(): Socket | null {
+    return this.socket;
   }
 }
 
-export const realTimeService = RealTimeService.getInstance();
+// Export singleton instance
+export const realTimeService = new RealTimeService();
 export default realTimeService;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { rideService } from '../services/rideService';
 import svgPaths from "../imports/svg-2aj2wlduut";
@@ -40,7 +40,43 @@ function StatusIndicator() {
   return null; // Removed as per Raahi branding guidelines
 }
 
-function DriverCard({ driver, otp, pickupLocation, onCancel }) {
+function DriverCard({ 
+  driver, 
+  otp, 
+  pickupLocation, 
+  onCancel, 
+  realDriverData, 
+  realOtp, 
+  isDriverView = false, 
+  currentTripState,
+  handleArrivedAtPickup,
+  handlePickupPassenger,
+  handleStartTrip,
+  handleCompleteTrip,
+  showOTPVerification,
+  setShowOTPVerification,
+  otpInput,
+  setOtpInput,
+  handleOTPVerification
+}: {
+  driver: any;
+  otp: string;
+  pickupLocation: string;
+  onCancel: () => void;
+  realDriverData: any;
+  realOtp: string | null;
+  isDriverView?: boolean;
+  currentTripState: 'en_route_to_pickup' | 'arrived_at_pickup' | 'passenger_picked_up' | 'trip_started';
+  handleArrivedAtPickup: () => void;
+  handlePickupPassenger: () => void;
+  handleStartTrip: () => void;
+  handleCompleteTrip: () => void;
+  showOTPVerification: boolean;
+  setShowOTPVerification: (show: boolean) => void;
+  otpInput: string;
+  setOtpInput: (value: string) => void;
+  handleOTPVerification: () => void;
+}) {
   /*
     🔄 API INTEGRATION:
     
@@ -65,9 +101,9 @@ function DriverCard({ driver, otp, pickupLocation, onCancel }) {
   
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<any[]>([]);
   
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -193,8 +229,34 @@ function DriverCard({ driver, otp, pickupLocation, onCancel }) {
           <div className="text-[#11211e] font-['Poppins:Medium',_sans-serif] text-[16px] mb-1">
             {realDriverData?.vehicleNumber || driver?.vehicle || "Loading..."}
           </div>
-          <div className="text-[#606060] text-[14px]">
+          <div className="text-[#606060] text-[14px] mb-2">
             {realDriverData?.vehicleModel || driver?.vehicleModel || "Loading..."}
+          </div>
+          
+          {/* Driver Status and ETA */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${
+                currentTripState === 'en_route_to_pickup' ? 'bg-[#00D4AA]' :
+                currentTripState === 'arrived_at_pickup' ? 'bg-[#FFA500]' :
+                currentTripState === 'passenger_picked_up' ? 'bg-[#007AFF]' :
+                currentTripState === 'trip_started' ? 'bg-[#00D4AA]' : 'bg-[#00D4AA]'
+              }`}></div>
+              <span className="text-[12px] text-[#606060]">
+                {currentTripState === 'en_route_to_pickup' ? 'En route to pickup' :
+                 currentTripState === 'arrived_at_pickup' ? 'Driver arrived' :
+                 currentTripState === 'passenger_picked_up' ? 'Ready to start' :
+                 currentTripState === 'trip_started' ? 'Trip in progress' : 'En route'}
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-[14px] font-semibold text-[#00D4AA]">
+                {currentTripState === 'en_route_to_pickup' ? '2 min' : 
+                 currentTripState === 'arrived_at_pickup' ? 'Arrived' :
+                 currentTripState === 'passenger_picked_up' ? 'Ready' :
+                 currentTripState === 'trip_started' ? 'En route' : '2 min'}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -262,81 +324,259 @@ function DriverCard({ driver, otp, pickupLocation, onCancel }) {
           </button>
         </div>
         
-        <div className="bg-white border-2 border-[#a5a5a5] py-3 px-6 rounded-xl">
-          <span className="font-['Poppins:Medium',_sans-serif] text-[16px]">
-            <span className="text-[#cf923d]">OTP</span>
-            <span className="text-[#333333]"> : </span>
-            <span className="text-[#11211e]">{realOtp || otp || "2323"}</span>
-          </span>
+        {/* Only show OTP for passengers, not drivers */}
+        {!isDriverView && (
+          <div className="bg-white border-2 border-[#a5a5a5] py-3 px-6 rounded-xl">
+            <span className="font-['Poppins:Medium',_sans-serif] text-[16px]">
+              <span className="text-[#cf923d]">OTP</span>
+              <span className="text-[#333333]"> : </span>
+              <span className="text-[#11211e]">{realOtp || otp || "2323"}</span>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Action Buttons - Different for driver vs passenger */}
+      {isDriverView ? (
+        // Driver view - Show trip control buttons
+        <div className="space-y-4 mb-4">
+          {/* Navigation Options for Driver */}
+          {currentTripState === 'en_route_to_pickup' && (
+            <div className="space-y-3">
+              {/* Navigation Buttons */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <button 
+                  onClick={() => {
+                    const pickupLat = 28.6139; // Replace with actual pickup coordinates
+                    const pickupLng = 77.209;
+                    const url = `https://www.google.com/maps/dir/?api=1&destination=${pickupLat},${pickupLng}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 p-3 bg-[#f0f8ff] rounded-lg hover:bg-[#e6f3ff] transition-colors"
+                >
+                  <div className="w-6 h-6 bg-[#4285f4] rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">G</span>
+                  </div>
+                  <span className="text-xs text-[#11211e]">Google</span>
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    const pickupLat = 28.6139; // Replace with actual pickup coordinates
+                    const pickupLng = 77.209;
+                    const url = `https://maps.apple.com/?daddr=${pickupLat},${pickupLng}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 p-3 bg-[#f0f8ff] rounded-lg hover:bg-[#e6f3ff] transition-colors"
+                >
+                  <div className="w-6 h-6 bg-[#007AFF] rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">A</span>
+                  </div>
+                  <span className="text-xs text-[#11211e]">Apple</span>
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    const pickupLat = 28.6139; // Replace with actual pickup coordinates
+                    const pickupLng = 77.209;
+                    const url = `https://waze.com/ul?ll=${pickupLat},${pickupLng}&navigate=yes`;
+                    window.open(url, '_blank');
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 p-3 bg-[#f0f8ff] rounded-lg hover:bg-[#e6f3ff] transition-colors"
+                >
+                  <div className="w-6 h-6 bg-[#33CCFF] rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">W</span>
+                  </div>
+                  <span className="text-xs text-[#11211e]">Waze</span>
+                </button>
+              </div>
+              
+              {/* I've Arrived Button */}
+              <button 
+                onClick={handleArrivedAtPickup}
+                className="w-full py-4 bg-[#00D4AA] text-white font-semibold rounded-xl hover:bg-[#00B894] transition-colors"
+              >
+                I've Arrived
+              </button>
+            </div>
+          )}
+          
+          {currentTripState === 'arrived_at_pickup' && (
+            <button 
+              onClick={handlePickupPassenger}
+              className="w-full py-4 bg-[#00D4AA] text-white font-semibold rounded-xl hover:bg-[#00B894] transition-colors"
+            >
+              Pickup {realDriverData?.passengerName || 'Passenger'}
+            </button>
+          )}
+          
+          {currentTripState === 'passenger_picked_up' && (
+            <div className="space-y-3">
+              {/* Navigation to Destination */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <button 
+                  onClick={() => {
+                    const dropLat = 28.5355; // Replace with actual destination coordinates
+                    const dropLng = 77.391;
+                    const url = `https://www.google.com/maps/dir/?api=1&destination=${dropLat},${dropLng}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 p-3 bg-[#f0f8ff] rounded-lg hover:bg-[#e6f3ff] transition-colors"
+                >
+                  <div className="w-6 h-6 bg-[#4285f4] rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">G</span>
+                  </div>
+                  <span className="text-xs text-[#11211e]">Google</span>
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    const dropLat = 28.5355; // Replace with actual destination coordinates
+                    const dropLng = 77.391;
+                    const url = `https://maps.apple.com/?daddr=${dropLat},${dropLng}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 p-3 bg-[#f0f8ff] rounded-lg hover:bg-[#e6f3ff] transition-colors"
+                >
+                  <div className="w-6 h-6 bg-[#007AFF] rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">A</span>
+                  </div>
+                  <span className="text-xs text-[#11211e]">Apple</span>
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    const dropLat = 28.5355; // Replace with actual destination coordinates
+                    const dropLng = 77.391;
+                    const url = `https://waze.com/ul?ll=${dropLat},${dropLng}&navigate=yes`;
+                    window.open(url, '_blank');
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 p-3 bg-[#f0f8ff] rounded-lg hover:bg-[#e6f3ff] transition-colors"
+                >
+                  <div className="w-6 h-6 bg-[#33CCFF] rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">W</span>
+                  </div>
+                  <span className="text-xs text-[#11211e]">Waze</span>
+                </button>
+              </div>
+              
+              <button 
+                onClick={handleStartTrip}
+                className="w-full py-4 bg-[#00D4AA] text-white font-semibold rounded-xl hover:bg-[#00B894] transition-colors"
+              >
+                Start Ride
+              </button>
+            </div>
+          )}
+          
+          {currentTripState === 'trip_started' && (
+            <button 
+              onClick={handleCompleteTrip}
+              className="w-full py-4 bg-[#00D4AA] text-white font-semibold rounded-xl hover:bg-[#00B894] transition-colors"
+            >
+              Complete Trip
+            </button>
+          )}
         </div>
-      </div>
+      ) : (
+        // Passenger view - Show safety and communication buttons
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <button 
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-[#f0f8ff] rounded-xl hover:bg-[#e6f3ff] transition-colors text-center"
+            onClick={() => {
+              toast.info("Safety features activated", {
+                description: "Location shared with emergency contacts",
+                duration: 3000,
+              });
+            }}
+          >
+            <div className="w-8 h-8 bg-[#4285f4] rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7C13.4,7 14.8,8.6 14.8,10V11.5C15.4,11.9 16,12.4 16,13V16C16,17.1 15.1,18 14,18H10C8.9,18 8,17.1 8,16V13C8,12.4 8.6,11.9 9.2,11.5V10C9.2,8.6 10.6,7 12,7M12,8.2C11.2,8.2 10.5,8.7 10.5,10V11.5H13.5V10C13.5,8.7 12.8,8.2 12,8.2Z"/>
+              </svg>
+            </div>
+            <span className="font-['Poppins:Medium',_sans-serif] text-[12px] text-[#11211e]">Safety</span>
+          </button>
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <button 
-          className="flex flex-col items-center justify-center gap-2 p-4 bg-[#f0f8ff] rounded-xl hover:bg-[#e6f3ff] transition-colors text-center"
-          onClick={() => {
-            // TODO: Implement safety features
-            // - Share live location with emergency contacts
-            // - Display safety tips and emergency numbers
-            // - API: POST /api/rides/{ride_id}/safety-check
-            toast.info("Safety features activated", {
-              description: "Location shared with emergency contacts",
-              duration: 3000,
-            });
-          }}
-        >
-          <div className="w-8 h-8 bg-[#4285f4] rounded-full flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7C13.4,7 14.8,8.6 14.8,10V11.5C15.4,11.9 16,12.4 16,13V16C16,17.1 15.1,18 14,18H10C8.9,18 8,17.1 8,16V13C8,12.4 8.6,11.9 9.2,11.5V10C9.2,8.6 10.6,7 12,7M12,8.2C11.2,8.2 10.5,8.7 10.5,10V11.5H13.5V10C13.5,8.7 12.8,8.2 12,8.2Z"/>
-            </svg>
-          </div>
-          <span className="font-['Poppins:Medium',_sans-serif] text-[12px] text-[#11211e]">Safety</span>
-        </button>
+          <button 
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-[#f0f8ff] rounded-xl hover:bg-[#e6f3ff] transition-colors text-center"
+            onClick={() => {
+              toast.success("Trip sharing enabled", {
+                description: "Live location link sent to contacts",
+                duration: 3000,
+              });
+            }}
+          >
+            <div className="w-8 h-8 bg-[#4285f4] rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
+              </svg>
+            </div>
+            <span className="font-['Poppins:Medium',_sans-serif] text-[12px] text-[#11211e]">Share my trip</span>
+          </button>
 
-        <button 
-          className="flex flex-col items-center justify-center gap-2 p-4 bg-[#f0f8ff] rounded-xl hover:bg-[#e6f3ff] transition-colors text-center"
-          onClick={() => {
-            // TODO: Implement trip sharing
-            // - Generate shareable link with live tracking
-            // - Send to selected contacts via SMS/WhatsApp
-            // - API: POST /api/rides/{ride_id}/share
-            toast.success("Trip sharing enabled", {
-              description: "Live location link sent to contacts",
-              duration: 3000,
-            });
-          }}
-        >
-          <div className="w-8 h-8 bg-[#4285f4] rounded-full flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
-            </svg>
-          </div>
-          <span className="font-['Poppins:Medium',_sans-serif] text-[12px] text-[#11211e]">Share my trip</span>
-        </button>
+          <button 
+            className="flex flex-col items-center justify-center gap-2 p-4 bg-[#f0f8ff] rounded-xl hover:bg-[#e6f3ff] transition-colors text-center"
+            onClick={() => {
+              const phoneNumber = realDriverData?.phone || driver?.phone || "+91 98765 43210";
+              toast.info("Calling driver...", {
+                description: `Connecting to ${phoneNumber}`,
+                duration: 2000,
+              });
+            }}
+          >
+            <div className="w-8 h-8 bg-[#4285f4] rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z"/>
+              </svg>
+            </div>
+            <span className="font-['Poppins:Medium',_sans-serif] text-[12px] text-[#11211e]">Call driver</span>
+          </button>
+        </div>
+      )}
 
-        <button 
-          className="flex flex-col items-center justify-center gap-2 p-4 bg-[#f0f8ff] rounded-xl hover:bg-[#e6f3ff] transition-colors text-center"
-          onClick={() => {
-            // TODO: Implement direct calling
-            // - Use native phone app to call driver
-            // - Log call duration for support purposes
-            // - API: POST /api/rides/{ride_id}/call-log
-            const phoneNumber = realDriverData?.phone || driver?.phone || "+91 98765 43210";
-            toast.info("Calling driver...", {
-              description: `Connecting to ${phoneNumber}`,
-              duration: 2000,
-            });
-          }}
-        >
-          <div className="w-8 h-8 bg-[#4285f4] rounded-full flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z"/>
-            </svg>
+      {/* OTP Verification Modal for Driver */}
+      {isDriverView && showOTPVerification && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
+            <h3 className="text-lg font-semibold text-center mb-4" style={{ color: '#11211e' }}>
+              Verify OTP
+            </h3>
+            <p className="text-sm text-center mb-4" style={{ color: '#c3aa85' }}>
+              Ask the passenger for the OTP to start the ride
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2" style={{ color: '#11211e' }}>
+                Enter OTP
+              </label>
+              <input
+                type="text"
+                value={otpInput}
+                onChange={(e) => setOtpInput(e.target.value)}
+                placeholder="Enter 4-digit OTP"
+                className="w-full p-3 border border-gray-300 rounded-lg text-center text-lg font-mono tracking-widest"
+                maxLength={4}
+              />
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowOTPVerification(false)}
+                className="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleOTPVerification}
+                className="flex-1 py-3 px-4 bg-[#00D4AA] text-white rounded-lg hover:bg-[#00B894] transition-colors"
+              >
+                Verify & Start
+              </button>
+            </div>
           </div>
-          <span className="font-['Poppins:Medium',_sans-serif] text-[12px] text-[#11211e]">Call driver</span>
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Cancel Ride Button */}
       <div className="mb-6">
@@ -419,6 +659,21 @@ export default function DriverTrackingScreen({
   dropLocation,
   onTripComplete,
   onCancel,
+  isDriverView = false, // New prop to distinguish driver vs passenger view
+  tripState = 'en_route_to_pickup', // New prop for trip state
+  onStartTrip, // New callback for starting trip
+}: {
+  driver: any;
+  otp: string;
+  pickupLocation: string;
+  dropLocation: string;
+  onTripComplete: () => void;
+  onCancel: () => void;
+  isDriverView?: boolean; // Optional prop, defaults to false (passenger view)
+  tripState?: 'en_route_to_pickup' | 'arrived_at_pickup' | 'passenger_picked_up' | 'trip_started'; // Trip state
+  onStartTrip?: () => void; // Callback for starting trip
+  onArrivedAtPickup?: () => void; // Callback for arriving at pickup
+  onPickupPassenger?: () => void; // Callback for picking up passenger
 }) {
   /*
     🗺️ API INTEGRATION - MAIN SCREEN:
@@ -456,10 +711,66 @@ export default function DriverTrackingScreen({
   const [rideId, setRideId] = useState<string | null>(null);
   const [realOtp, setRealOtp] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [currentTripState, setCurrentTripState] = useState<'en_route_to_pickup' | 'arrived_at_pickup' | 'passenger_picked_up' | 'trip_started'>(tripState);
+  const [showOTPVerification, setShowOTPVerification] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
 
   // Generate OTP for ride verification
   const generateOTP = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
+  };
+
+  // Handle arriving at pickup location
+  const handleArrivedAtPickup = () => {
+    setCurrentTripState('arrived_at_pickup');
+    setTripStatus('arrived');
+    if (onArrivedAtPickup) {
+      onArrivedAtPickup();
+    }
+    console.log('🚗 Driver arrived at pickup location');
+  };
+
+  // Handle picking up passenger
+  const handlePickupPassenger = () => {
+    setCurrentTripState('passenger_picked_up');
+    setTripStatus('picked_up');
+    if (onPickupPassenger) {
+      onPickupPassenger();
+    }
+    console.log('👤 Passenger picked up');
+  };
+
+  // Handle starting trip (Uber-like workflow)
+  const handleStartTrip = () => {
+    setShowOTPVerification(true);
+    console.log('🔐 Showing OTP verification screen');
+  };
+
+  // Handle OTP verification
+  const handleOTPVerification = () => {
+    if (otpInput === (realOtp || otp || "2323")) {
+      setCurrentTripState('trip_started');
+      setTripStatus('trip_started');
+      setShowOTPVerification(false);
+      if (onStartTrip) {
+        onStartTrip();
+      }
+      console.log('✅ OTP verified - trip started');
+    } else {
+      toast.error("Invalid OTP", {
+        description: "Please check the OTP and try again",
+        duration: 3000,
+      });
+    }
+  };
+
+  // Handle completing trip (Uber-like workflow)
+  const handleCompleteTrip = () => {
+    setTripStatus('completed');
+    if (onTripComplete) {
+      onTripComplete();
+    }
+    console.log('✅ Trip completed');
   };
 
   // Fetch real driver data from API
@@ -497,6 +808,9 @@ export default function DriverTrackingScreen({
             pickupLng: 77.2090,
             dropLat: 28.5355,
             dropLng: 77.3910,
+            pickupAddress: 'Connaught Place, New Delhi',
+            dropAddress: 'India Gate, New Delhi',
+            paymentMethod: 'CASH',
             vehicleType: 'SEDAN'
           });
           setRideId(newRide.id);
@@ -638,6 +952,19 @@ export default function DriverTrackingScreen({
           otp={otp}
           pickupLocation={pickupLocation}
           onCancel={onCancel}
+          realDriverData={realDriverData}
+          realOtp={realOtp}
+          isDriverView={isDriverView}
+          currentTripState={currentTripState}
+          handleArrivedAtPickup={handleArrivedAtPickup}
+          handlePickupPassenger={handlePickupPassenger}
+          handleStartTrip={handleStartTrip}
+          handleCompleteTrip={handleCompleteTrip}
+          showOTPVerification={showOTPVerification}
+          setShowOTPVerification={setShowOTPVerification}
+          otpInput={otpInput}
+          setOtpInput={setOtpInput}
+          handleOTPVerification={handleOTPVerification}
         />
         </div>
       </div>

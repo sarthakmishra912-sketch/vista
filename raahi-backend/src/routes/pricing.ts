@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express';
-import { body, validationResult } from 'express-validator';
+import { body, query, validationResult } from 'express-validator';
 import { PricingService } from '../services/pricingService';
 import { optionalAuth } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -61,9 +61,9 @@ router.post('/calculate', [
  * @access  Public
  */
 router.get('/nearby-drivers', [
-  body('lat').isFloat({ min: -90, max: 90 }).withMessage('Valid latitude required'),
-  body('lng').isFloat({ min: -180, max: 180 }).withMessage('Valid longitude required'),
-  body('radius').optional().isFloat({ min: 1, max: 50 }).withMessage('Radius must be between 1-50 km')
+  query('lat').isFloat({ min: -90, max: 90 }).withMessage('Valid latitude required'),
+  query('lng').isFloat({ min: -180, max: 180 }).withMessage('Valid longitude required'),
+  query('radius').optional().isFloat({ min: 1, max: 50 }).withMessage('Radius must be between 1-50 km')
 ], optionalAuth, asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -75,10 +75,14 @@ router.get('/nearby-drivers', [
     return;
   }
 
-  const { lat, lng, radius = 5 } = req.body;
+  const { lat, lng, radius = 5 } = req.query;
 
   try {
-    const drivers = await PricingService.getNearbyDrivers(lat, lng, radius);
+    const drivers = await PricingService.getNearbyDrivers(
+      parseFloat(lat as string), 
+      parseFloat(lng as string), 
+      parseFloat(radius as string)
+    );
 
     res.status(200).json({
       success: true,

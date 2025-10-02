@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { body, validationResult, query } from 'express-validator';
 import { RideService } from '../services/rideService';
+import { RealTimeService } from '../services/realTimeService';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
@@ -23,8 +24,32 @@ router.post('/', authenticate, [
   body('scheduledTime').optional().isISO8601().withMessage('Valid scheduled time required'),
   body('vehicleType').optional().isString().withMessage('Vehicle type must be string')
 ], asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const requestId = Math.random().toString(36).substring(7);
+  const startTime = Date.now();
+  
+  logger.info(`[${requestId}] CREATE RIDE API CALL STARTED`, {
+    userId: req.user?.id,
+    userAgent: req.get('User-Agent'),
+    ip: req.ip,
+    body: {
+      pickupLat: req.body.pickupLat,
+      pickupLng: req.body.pickupLng,
+      dropLat: req.body.dropLat,
+      dropLng: req.body.dropLng,
+      pickupAddress: req.body.pickupAddress,
+      dropAddress: req.body.dropAddress,
+      paymentMethod: req.body.paymentMethod,
+      scheduledTime: req.body.scheduledTime,
+      vehicleType: req.body.vehicleType
+    }
+  });
+
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    logger.warn(`[${requestId}] CREATE RIDE VALIDATION FAILED`, {
+      errors: errors.array(),
+      duration: Date.now() - startTime
+    });
     res.status(400).json({
       success: false,
       message: 'Validation failed',
@@ -46,6 +71,14 @@ router.post('/', authenticate, [
   } = req.body;
 
   try {
+    logger.info(`[${requestId}] CALLING RIDE SERVICE TO CREATE RIDE`, {
+      passengerId: req.user!.id,
+      pickupLocation: `${pickupLat}, ${pickupLng}`,
+      dropLocation: `${dropLat}, ${dropLng}`,
+      paymentMethod,
+      vehicleType
+    });
+
     const ride = await RideService.createRide({
       passengerId: req.user!.id,
       pickupLat,
@@ -59,13 +92,63 @@ router.post('/', authenticate, [
       vehicleType
     });
 
+    const duration = Date.now() - startTime;
+    logger.info(`[${requestId}] CREATE RIDE SUCCESS`, {
+      rideId: ride.id,
+      status: ride.status,
+      totalFare: ride.totalFare,
+      duration: `${duration}ms`,
+      responseTime: duration
+    });
+
+    // Broadcast ride request to nearby drivers in real-time
+    try {
+      const nearbyDrivers = await RealTimeService.findNearbyDrivers(
+        pickupLat,
+        pickupLng,
+        10, // 10km radius
+        vehicleType
+      );
+
+      await RealTimeService.broadcastRideRequest(ride.id, {
+        ...ride,
+        pickupLatitude: pickupLat,
+        pickupLongitude: pickupLng,
+        dropLatitude: dropLat,
+        dropLongitude: dropLng,
+        pickupAddress,
+        dropAddress,
+        vehicleType,
+        passengerName: req.user?.firstName || 'Passenger'
+      }, nearbyDrivers);
+
+      logger.info(`[${requestId}] RIDE REQUEST BROADCASTED`, {
+        rideId: ride.id,
+        nearbyDrivers: nearbyDrivers.length,
+        pickupAddress,
+        dropAddress
+      });
+    } catch (broadcastError) {
+      logger.error(`[${requestId}] RIDE REQUEST BROADCAST FAILED`, {
+        error: broadcastError instanceof Error ? broadcastError.message : 'Unknown error',
+        rideId: ride.id
+      });
+      // Don't fail the ride creation if broadcasting fails
+    }
+
     res.status(201).json({
       success: true,
       message: 'Ride created successfully',
       data: ride
     });
   } catch (error) {
-    logger.error('Create ride error:', error);
+    const duration = Date.now() - startTime;
+    logger.error(`[${requestId}] CREATE RIDE ERROR`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      duration: `${duration}ms`,
+      passengerId: req.user!.id
+    });
     res.status(500).json({
       success: false,
       message: 'Failed to create ride'

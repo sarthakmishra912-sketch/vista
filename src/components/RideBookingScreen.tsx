@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { toast } from "sonner";
 import { pricingService } from '../services/pricingService';
 import { geocodingService, GeocodingResult, PlaceSuggestion } from '../services/geocodingService';
+import { realTimeService } from '../services/realTimeService';
 import svgPaths from "../imports/svg-u42y27j2nw";
 import arrowSvgPaths from "../imports/svg-4olgt74d78";
 import imgFrame from "figma:asset/4e95da5f9e6ec1d32f897fbff5c28b62b3c1d8ed.png";

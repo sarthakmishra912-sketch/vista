@@ -214,6 +214,105 @@ export class RealTimeService {
   }
 
   /**
+   * Broadcast new ride request to nearby online drivers
+   */
+  static async broadcastRideRequest(
+    rideId: string,
+    rideData: any,
+    nearbyDrivers: string[]
+  ): Promise<void> {
+    try {
+      const rideRequest = {
+        rideId,
+        pickupLocation: {
+          lat: rideData.pickupLatitude,
+          lng: rideData.pickupLongitude,
+          address: rideData.pickupAddress
+        },
+        dropLocation: {
+          lat: rideData.dropLatitude,
+          lng: rideData.dropLongitude,
+          address: rideData.dropAddress
+        },
+        distance: rideData.distance,
+        estimatedFare: rideData.totalFare,
+        paymentMethod: rideData.paymentMethod,
+        vehicleType: rideData.vehicleType || 'SEDAN',
+        passengerName: rideData.passengerName || 'Passenger',
+        timestamp: new Date().toISOString()
+      };
+
+      // Broadcast to all nearby drivers
+      nearbyDrivers.forEach(driverId => {
+        io.to(`driver-${driverId}`).emit('new-ride-request', rideRequest);
+      });
+
+      // Also broadcast to all online drivers (for testing)
+      io.emit('new-ride-request', rideRequest);
+
+      logger.info(`Ride request ${rideId} broadcasted to ${nearbyDrivers.length} drivers`, {
+        rideId,
+        nearbyDrivers: nearbyDrivers.length,
+        pickupAddress: rideData.pickupAddress,
+        dropAddress: rideData.dropAddress,
+        fare: rideData.totalFare
+      });
+    } catch (error) {
+      logger.error('Error broadcasting ride request:', error);
+    }
+  }
+
+  /**
+   * Find nearby online drivers for a ride request
+   */
+  static async findNearbyDrivers(
+    lat: number,
+    lng: number,
+    radius: number = 10,
+    vehicleType?: string
+  ): Promise<string[]> {
+    try {
+      const latRange = radius / 111; // Approximate km to degrees
+      const lngRange = radius / (111 * Math.cos(lat * Math.PI / 180));
+
+      const drivers = await prisma.driver.findMany({
+        where: {
+          isOnline: true,
+          isActive: true,
+          currentLatitude: {
+            gte: lat - latRange,
+            lte: lat + latRange
+          },
+          currentLongitude: {
+            gte: lng - lngRange,
+            lte: lng + lngRange
+          }
+        },
+        select: {
+          id: true,
+          vehicleModel: true,
+          rating: true,
+          currentLatitude: true,
+          currentLongitude: true
+        }
+      });
+
+      // Filter by vehicle type if specified
+      const filteredDrivers = vehicleType 
+        ? drivers.filter(driver => 
+            driver.vehicleModel.toLowerCase().includes(vehicleType.toLowerCase()) ||
+            vehicleType === 'SEDAN' // Default fallback
+          )
+        : drivers;
+
+      return filteredDrivers.map(driver => driver.id);
+    } catch (error) {
+      logger.error('Error finding nearby drivers:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get heatmap data for drivers
    */
   static async getDriverHeatmapData(): Promise<Array<{ lat: number; lng: number; count: number }>> {
