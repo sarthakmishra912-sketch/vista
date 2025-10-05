@@ -19,6 +19,8 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/user';
 import rideRoutes from './routes/ride';
 import driverRoutes from './routes/driver';
+import driverOnboardingRoutes from './routes/driverOnboarding';
+import adminRoutes from './routes/admin';
 import pricingRoutes from './routes/pricing';
 import notificationRoutes from './routes/notification';
 import realTimeRoutes from './routes/realTime';
@@ -83,11 +85,16 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/rides', rideRoutes);
 app.use('/api/driver', driverRoutes);
+app.use('/api/driver/onboarding', driverOnboardingRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/realtime', realTimeRoutes);

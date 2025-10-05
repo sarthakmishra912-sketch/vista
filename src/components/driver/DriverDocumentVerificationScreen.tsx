@@ -264,6 +264,40 @@ export default function DriverDocumentVerificationScreen({
     const autoVerifyDocuments = () => {
       console.log('🔄 Starting auto-verification simulation...');
       
+      // Check if all documents are already completed
+      const allCompleted = documents.every(doc => doc.status === 'completed');
+      const completedCount = documents.filter(doc => doc.status === 'completed').length;
+      
+      if (allCompleted && completedCount === 5) {
+        console.log('✅ All documents already verified! Navigating to success screen...');
+        
+        // Save verified status to localStorage
+        const verifiedDocsStatus = {
+          allDocumentsVerified: true,
+          verifiedAt: new Date().toISOString(),
+          documentStatuses: documents.reduce((acc, doc) => {
+            acc[doc.id] = {
+              status: 'completed',
+              verifiedAt: new Date().toISOString()
+            };
+            return acc;
+          }, {} as any)
+        };
+        
+        localStorage.setItem('raahi_driver_documents_verified', JSON.stringify(verifiedDocsStatus));
+        localStorage.setItem('raahi_driver_onboarding_status', 'documents_verified');
+        
+        // Navigate to success screen after short delay
+        setTimeout(() => {
+          console.log('🎉 Navigating to success screen...');
+          if (window.handleDocumentVerificationSuccess) {
+            window.handleDocumentVerificationSuccess();
+          }
+        }, 2000);
+        
+        return; // Exit early
+      }
+      
       // Check if any documents are in processing state
       const hasProcessingDocs = documents.some(doc => doc.status === 'processing');
       
@@ -452,9 +486,9 @@ export default function DriverDocumentVerificationScreen({
   });
 
   return (
-    <div className="bg-white w-full">
+    <div className="bg-white min-h-screen w-full">
       <div className="max-w-md mx-auto">
-        <div className="flex flex-col gap-6 p-4 pt-8">
+        <div className="flex flex-col gap-6 p-4 pt-8 pb-20">
 
           {/* Header with Raahi branding and Support */}
           <div 

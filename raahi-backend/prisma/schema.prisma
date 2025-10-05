@@ -35,12 +35,12 @@ model User {
 model Driver {
   id                String    @id @default(cuid())
   userId            String    @unique
-  licenseNumber     String    @unique
-  licenseExpiry     DateTime
-  vehicleNumber     String    @unique
-  vehicleModel      String
-  vehicleColor      String
-  vehicleYear       Int
+  licenseNumber     String?   @unique
+  licenseExpiry     DateTime?
+  vehicleNumber     String?   @unique
+  vehicleModel      String?
+  vehicleColor      String?
+  vehicleYear       Int?
   isVerified        Boolean   @default(false)
   isActive          Boolean   @default(true)
   isOnline          Boolean   @default(false)
@@ -51,6 +51,15 @@ model Driver {
   totalEarnings     Float     @default(0.0)
   joinedAt          DateTime  @default(now())
   lastActiveAt      DateTime?
+  
+  // Onboarding fields
+  onboardingStatus  OnboardingStatus @default(EMAIL_COLLECTION)
+  preferredLanguage String?
+  vehicleType       String?
+  serviceTypes      String[]  // Array of service types: ["bike_rescue", "raahi_driver"]
+  documentsSubmittedAt DateTime?
+  documentsVerifiedAt  DateTime?
+  verificationNotes    String?
   
   // Relations
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -66,8 +75,12 @@ model DriverDocument {
   driverId          String
   documentType      DocumentType
   documentUrl       String
+  documentName      String?
+  documentSize      Int?
   isVerified        Boolean   @default(false)
   verifiedAt        DateTime?
+  verifiedBy        String?   // Admin user ID who verified
+  rejectionReason   String?
   uploadedAt        DateTime  @default(now())
   
   // Relations
@@ -221,6 +234,22 @@ enum DocumentType {
   INSURANCE
   PUC
   PROFILE_PHOTO
+  PAN_CARD
+  AADHAAR_CARD
+}
+
+enum OnboardingStatus {
+  EMAIL_COLLECTION
+  LANGUAGE_SELECTION
+  EARNING_SETUP
+  VEHICLE_SELECTION
+  LICENSE_UPLOAD
+  PROFILE_PHOTO
+  PHOTO_CONFIRMATION
+  DOCUMENT_UPLOAD
+  DOCUMENT_VERIFICATION
+  COMPLETED
+  REJECTED
 }
 
 enum RideStatus {

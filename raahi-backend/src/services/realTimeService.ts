@@ -300,7 +300,7 @@ export class RealTimeService {
       // Filter by vehicle type if specified
       const filteredDrivers = vehicleType 
         ? drivers.filter(driver => 
-            driver.vehicleModel.toLowerCase().includes(vehicleType.toLowerCase()) ||
+            (driver.vehicleModel && driver.vehicleModel.toLowerCase().includes(vehicleType.toLowerCase())) ||
             vehicleType === 'SEDAN' // Default fallback
           )
         : drivers;

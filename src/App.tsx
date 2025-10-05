@@ -24,6 +24,7 @@ const DriverTrackingScreen = lazy(() => import('./components/DriverTrackingScree
 const DriverSignupScreen = lazy(() => import('./components/DriverSignupScreen').catch(() => ({ default: () => <div>Driver Signup Loading...</div> })));
 const DriverDashboardScreen = lazy(() => import('./components/DriverDashboardScreen').catch(() => ({ default: () => <div>Driver Dashboard Loading...</div> })));
 const DriverLoginScreen = lazy(() => import('./components/DriverLoginScreen').catch(() => ({ default: () => <div>Driver Login Loading...</div> })));
+const AdminDashboardScreen = lazy(() => import('./components/AdminDashboardScreen').catch(() => ({ default: () => <div>Admin Dashboard Loading...</div> })));
 
 // 🎯 LAZY LOAD DRIVER SCREENS: Import individually for better performance with error handling
 const DriverEmailCollectionScreen = lazy(() => import('./components/driver/DriverEmailCollectionScreen').catch(() => ({ default: () => <div>Driver Email Collection Loading...</div> })));
@@ -70,6 +71,33 @@ export default function App() {
   } = appState;
 
   const { updateAppState } = appState;
+
+  // Check for admin URL parameter
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === 'true') {
+      console.log("👨‍💼 Admin mode detected via URL, navigating to admin dashboard");
+      updateAppState({ currentScreen: 'admin-dashboard' });
+    }
+  }, [updateAppState]);
+
+  // Set up global callback for document verification success
+  React.useEffect(() => {
+    if (currentScreen === 'driver-document-verification') {
+      window.handleDocumentVerificationSuccess = () => {
+        console.log("🎉 Document verification success callback triggered!");
+        updateAppState({ 
+          currentScreen: 'driver-document-verification-success'
+        });
+      };
+    }
+    
+    return () => {
+      if (window.handleDocumentVerificationSuccess) {
+        delete window.handleDocumentVerificationSuccess;
+      }
+    };
+  }, [currentScreen, updateAppState]);
 
   // 🚀 PERFORMANCE: Memoize handlers to prevent unnecessary re-renders
   const handleLogin = useCallback((method: string) => {
@@ -267,7 +295,7 @@ export default function App() {
   const handleDriverVehicleSelectionContinue = useCallback((vehicleData: any) => {
     console.log("🚗 Driver vehicle selection continue:", vehicleData);
     updateAppState({ 
-      currentScreen: 'driver-ride-selection'
+      currentScreen: 'driver-license-upload'
     });
   }, [updateAppState]);
 
@@ -315,7 +343,7 @@ export default function App() {
   const handleDriverLicenseUploadBack = useCallback(() => {
     console.log("🔙 Driver license upload back");
     updateAppState({ 
-      currentScreen: 'driver-ride-selection'
+      currentScreen: 'driver-vehicle-selection'
     });
   }, [updateAppState]);
 
@@ -540,6 +568,12 @@ export default function App() {
     console.log("🚗 Rendering Driver Login Screen");
     return renderScreen(DriverLoginScreen, {
       onDriverLogin: handleDriverLogin,
+      onDriverSignup: () => {
+        console.log("🚗 Driver signup clicked - starting onboarding flow");
+        updateAppState({ 
+          currentScreen: 'driver-email-collection'
+        });
+      },
       onBack: handleDriverLoginBack
     });
   }
@@ -629,6 +663,13 @@ export default function App() {
     });
   }
 
+  if (currentScreen === 'admin-dashboard') {
+    console.log("👨‍💼 Rendering Admin Dashboard Screen");
+    return renderScreen(AdminDashboardScreen, {
+      onBack: () => updateAppState({ currentScreen: 'dashboard' })
+    });
+  }
+
   // Default screen - Dashboard (always shown first)
   console.log("🏠 Rendering Dashboard Screen");
   return (
@@ -640,6 +681,7 @@ export default function App() {
             onFindRide: handleFindRide,
             onOpenDriversApp: handleOpenDriversApp,
             onSwitchAccount: handleSwitchAccount,
+            onOpenAdmin: () => updateAppState({ currentScreen: 'admin-dashboard' }),
             userEmail
           })}
         </div>

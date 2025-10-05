@@ -24,7 +24,18 @@ type ScreenType =
   | 'driver-signup'
   | 'driver-dashboard'
   | 'driver-login'
-  | 'driver-email-collection';
+  | 'driver-email-collection'
+  | 'driver-language-selection'
+  | 'driver-earning-setup'
+  | 'driver-vehicle-selection'
+  | 'driver-ride-selection'
+  | 'driver-license-upload'
+  | 'driver-profile-photo'
+  | 'driver-photo-confirmation'
+  | 'driver-document-upload'
+  | 'driver-document-verification'
+  | 'driver-document-verification-success'
+  | 'admin-dashboard';
 
 interface AppState {
   isLoggedIn: boolean;

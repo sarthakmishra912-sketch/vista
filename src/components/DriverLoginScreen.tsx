@@ -7,10 +7,11 @@ import { Separator } from "./ui/separator";
 
 interface DriverLoginScreenProps {
   onDriverLogin: (method: string, email?: string, password?: string) => void;
+  onDriverSignup?: () => void;
   onBack: () => void;
 }
 
-export default function DriverLoginScreen({ onDriverLogin, onBack }: DriverLoginScreenProps) {
+export default function DriverLoginScreen({ onDriverLogin, onDriverSignup, onBack }: DriverLoginScreenProps) {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
 
@@ -218,9 +219,16 @@ export default function DriverLoginScreen({ onDriverLogin, onBack }: DriverLogin
             variant="ghost"
             className="text-sm underline"
             style={{ color: '#cf923d' }}
-            onClick={() => onDriverLogin('signup')}
+            onClick={() => {
+              console.log('🚗 Register as New Driver clicked - starting onboarding flow');
+              if (onDriverSignup) {
+                onDriverSignup();
+              } else {
+                onDriverLogin('signup');
+              }
+            }}
           >
-            Register as a New Driver
+            Register as New Driver
           </Button>
         </div>
 

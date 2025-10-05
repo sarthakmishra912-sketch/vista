@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import svgPaths from "../../imports/svg-zeoe4zqx5r";
+import { driverOnboardingApi } from '../../services/driver';
+import { toast } from 'sonner';
 
 interface DriverLanguageSelectionScreenProps {
   onContinue: (selectedLanguage: string) => void;
@@ -24,15 +26,19 @@ export default function DriverLanguageSelectionScreen({
 }: DriverLanguageSelectionScreenProps) {
   const [selectedLanguage, setSelectedLanguage] = useState('en');
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedLanguage) {
-      // TODO: Implement language preference save API call
-      // PUT /api/driver/preferences
-      // {
-      //   language: selectedLanguage,
-      //   email: userEmail
-      // }
-      onContinue(selectedLanguage);
+      try {
+        console.log('🌐 Saving language preference:', selectedLanguage);
+        await driverOnboardingApi.updateLanguage(selectedLanguage);
+        toast.success('Language preference saved');
+        onContinue(selectedLanguage);
+      } catch (error) {
+        console.error('❌ Error saving language:', error);
+        toast.error('Failed to save language preference');
+        // Still proceed to next step for better UX
+        onContinue(selectedLanguage);
+      }
     }
   };
 

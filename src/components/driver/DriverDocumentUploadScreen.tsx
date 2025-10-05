@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import DriverLocationSelectionModal from './DriverLocationSelectionModal';
+import { driverOnboardingApi } from '../../services/driver';
+import { toast } from 'sonner';
 
 interface DocumentUploadData {
   file: File | null;
@@ -291,8 +293,33 @@ export default function DriverDocumentUploadScreen({
       
       console.log(`✅ File validation passed for ${documentId}`);
       
-      // Update document state with error handling
+      // Map frontend document IDs to backend DocumentType enum
+      const documentTypeMap: { [key: string]: string } = {
+        'drivingLicense': 'LICENSE',
+        'panCard': 'PAN_CARD',
+        'rcCertificate': 'RC',
+        'aadhaarCard': 'AADHAAR_CARD',
+        'profilePhoto': 'PROFILE_PHOTO'
+      };
+      
+      const backendDocType = documentTypeMap[documentId];
+      if (!backendDocType) {
+        console.error(`Unknown document type: ${documentId}`);
+        alert('Invalid document type. Please try again.');
+        return;
+      }
+      
+      // Upload document to backend
       try {
+        console.log(`📤 Uploading ${documentId} to backend as ${backendDocType}...`);
+        toast.loading(`Uploading ${documentId}...`, { id: `upload-${documentId}` });
+        
+        const response = await driverOnboardingApi.uploadDocument(file, backendDocType as any);
+        
+        console.log(`✅ Document uploaded to backend:`, response);
+        toast.success(`${documentId} uploaded successfully`, { id: `upload-${documentId}` });
+        
+        // Update document state with error handling
         setDocuments(prev => ({
           ...prev,
           [documentId]: {
@@ -303,21 +330,16 @@ export default function DriverDocumentUploadScreen({
         }));
         
         console.log(`✅ Document state updated for ${documentId}`);
-      } catch (stateError) {
-        console.error('Error updating document state:', stateError);
-        alert('Error updating document status. Please try again.');
-        return;
-      }
-      
-      // Save to localStorage for demo purposes
-      try {
+        
+        // Save to localStorage for persistence
         const documentData = {
           [documentId]: {
             fileName: file.name,
             fileSize: file.size,
             fileType: file.type,
             uploadedAt: new Date().toISOString(),
-            status: 'uploaded'
+            status: 'uploaded',
+            documentId: response.document_id // Store backend document ID
           }
         };
         
@@ -328,9 +350,15 @@ export default function DriverDocumentUploadScreen({
         }));
         
         console.log(`✅ Document data saved to localStorage for ${documentId}`);
-      } catch (storageError) {
-        console.error('Error saving to localStorage:', storageError);
-        // Don't show alert for localStorage error as the main functionality still works
+        
+      } catch (uploadError: any) {
+        console.error('Error uploading document to backend:', uploadError);
+        toast.error(`Failed to upload ${documentId}`, { id: `upload-${documentId}` });
+        alert(`Failed to upload ${documentId}. Please try again.`);
+        
+        // Reset the input and state
+        event.target.value = '';
+        return;
       }
 
     } catch (error) {
@@ -407,14 +435,46 @@ export default function DriverDocumentUploadScreen({
           };
         }, {});
       
-      // Save completion status
+      // Save completion status locally
       localStorage.setItem('raahi_driver_documents_status', JSON.stringify({
         uploadedDocuments,
         location: selectedLocation,
         completed_at: new Date().toISOString()
       }));
       
-      await onNext(uploadedDocuments);
+      // Submit documents for verification via API
+      try {
+        console.log('📋 Submitting documents for verification...');
+        toast.loading('Submitting documents...', { id: 'submit-docs' });
+        
+        const response = await driverOnboardingApi.submitDocuments();
+        console.log('✅ Documents submitted:', response);
+        
+        toast.success('Documents submitted for verification', { id: 'submit-docs' });
+        
+        // Proceed to next screen
+        await onNext(uploadedDocuments);
+      } catch (error: any) {
+        console.error('❌ Error submitting documents:', error);
+        
+        // Extract error message from API response
+        const errorMessage = error?.response?.data?.message || 
+                           error?.message || 
+                           'Failed to submit documents';
+        
+        const missingDocs = error?.response?.data?.data?.missing_documents;
+        
+        if (missingDocs && missingDocs.length > 0) {
+          toast.error(`Missing documents: ${missingDocs.join(', ')}`, { id: 'submit-docs' });
+          alert(`Please upload the following required documents:\n\n${missingDocs.join('\n')}\n\nAll documents must be uploaded before proceeding.`);
+        } else {
+          toast.error(errorMessage, { id: 'submit-docs' });
+          alert(`Error: ${errorMessage}\n\nPlease try again or contact support.`);
+        }
+        
+        // Don't proceed to next screen if submission failed
+        return;
+      }
     } catch (error) {
       console.error("Error proceeding to next step:", error);
     }

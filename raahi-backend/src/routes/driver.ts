@@ -59,6 +59,11 @@ router.get('/profile', authenticateDriver, asyncHandler(async (req: AuthRequest,
     // Get total earnings from driver record
     const totalEarnings = driver.totalEarnings;
 
+    // Check if all documents are verified
+    const allDocsVerified = driver.documents.length > 0 && 
+                           driver.documents.every(doc => doc.isVerified);
+    const pendingDocs = driver.documents.filter(doc => !doc.isVerified);
+
     const driverProfile = {
       driver_id: driver.id,
       email: driver.user.email,
@@ -66,7 +71,7 @@ router.get('/profile', authenticateDriver, asyncHandler(async (req: AuthRequest,
       phone: driver.user.phone,
       license_number: driver.licenseNumber,
       vehicle_info: {
-        make: driver.vehicleModel.split(' ')[0] || 'Unknown',
+        make: driver.vehicleModel?.split(' ')[0] || 'Unknown',
         model: driver.vehicleModel,
         year: driver.vehicleYear,
         license_plate: driver.vehicleNumber,
@@ -75,7 +80,17 @@ router.get('/profile', authenticateDriver, asyncHandler(async (req: AuthRequest,
       documents: {
         license_verified: driver.documents.some(doc => doc.documentType === 'LICENSE' && doc.isVerified),
         insurance_verified: driver.documents.some(doc => doc.documentType === 'INSURANCE' && doc.isVerified),
-        vehicle_registration_verified: driver.documents.some(doc => doc.documentType === 'RC' && doc.isVerified)
+        vehicle_registration_verified: driver.documents.some(doc => doc.documentType === 'RC' && doc.isVerified),
+        all_verified: allDocsVerified,
+        pending_count: pendingDocs.length
+      },
+      onboarding: {
+        status: driver.onboardingStatus,
+        is_verified: driver.isVerified,
+        documents_submitted: driver.documentsSubmittedAt !== null,
+        documents_verified: allDocsVerified,
+        can_start_rides: driver.isVerified && allDocsVerified,
+        verification_notes: driver.verificationNotes
       },
       status: driver.isActive ? 'active' : 'inactive',
       rating: driver.rating,

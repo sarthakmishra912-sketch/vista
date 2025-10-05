@@ -161,7 +161,7 @@ export class RideService {
           passenger.phone,
           `${ride.driver.user.firstName} ${ride.driver.user.lastName || ''}`.trim(),
           ride.driver.user.phone,
-          ride.driver.vehicleNumber,
+          ride.driver.vehicleNumber || '',
           estimatedArrival
         );
       }

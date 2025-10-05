@@ -6,6 +6,7 @@ interface DashboardScreenProps {
   onFindRide: () => void;
   onOpenDriversApp: () => void;
   onSwitchAccount: () => void;
+  onOpenAdmin?: () => void;
   userEmail?: string;
 }
 
@@ -122,7 +123,7 @@ function ActionButtons({ onFindRide, onOpenDriversApp }: { onFindRide: () => voi
   );
 }
 
-export default function DashboardScreen({ onFindRide, onOpenDriversApp, onSwitchAccount, userEmail }: DashboardScreenProps) {
+export default function DashboardScreen({ onFindRide, onOpenDriversApp, onSwitchAccount, onOpenAdmin, userEmail }: DashboardScreenProps) {
   return (
     <div className="relative size-full min-h-screen overflow-hidden" data-name="Dashboard">
       {/* Background */}
@@ -159,8 +160,20 @@ export default function DashboardScreen({ onFindRide, onOpenDriversApp, onSwitch
         <p className="[text-decoration-skip-ink:none] [text-underline-position:from-font] decoration-solid leading-[normal] underline">Switch Account?</p>
       </button>
       
-      {/* Footer Text */}
-      <div className="absolute font-medium leading-[0] not-italic text-[#606060] text-center bottom-[40px] translate-x-[-50%] w-full max-w-[426px] px-4" style={{ left: "50%" }}>
+      {/* Footer Text (Click 5 times to access admin) */}
+      <div 
+        className="absolute font-medium leading-[0] not-italic text-[#606060] text-center bottom-[40px] translate-x-[-50%] w-full max-w-[426px] px-4 cursor-pointer select-none" 
+        style={{ left: "50%" }}
+        onClick={(e) => {
+          const clicks = parseInt(e.currentTarget.dataset.clicks || '0') + 1;
+          e.currentTarget.dataset.clicks = clicks.toString();
+          if (clicks >= 5 && onOpenAdmin) {
+            e.currentTarget.dataset.clicks = '0';
+            console.log('🔓 Admin access unlocked!');
+            onOpenAdmin();
+          }
+        }}
+      >
         <p className="leading-[normal]">
           <span className="font-light not-italic text-[#606060] text-lg">Curated with love in Delhi, NCR </span>
           <span className="text-[#606060] text-base">💛</span>

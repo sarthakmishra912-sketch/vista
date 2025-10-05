@@ -3,6 +3,8 @@ import svgPaths from "../../imports/svg-8j8aca4rop";
 import imgFrame from "figma:asset/7f47ed867f69a74c7c3460960b62538febb7f450.png";
 import imgFrame1 from "figma:asset/4e95da5f9e6ec1d32f897fbff5c28b62b3c1d8ed.png";
 import imgFrame2 from "figma:asset/476ff6f1a6a1f52a02c7ac15d243763b00d931ee.png";
+import { driverOnboardingApi } from '../../services/driver';
+import { toast } from 'sonner';
 
 interface DriverVehicleSelectionScreenProps {
   onContinue: (vehicleData: { 
@@ -95,25 +97,22 @@ export default function DriverVehicleSelectionScreen({
     };
 
     try {
-      // TODO: Save vehicle selection to API
-      // POST /api/driver/vehicle-selection
-      // {
-      //   driver_id: localStorage.getItem('raahi_driver_id'),
-      //   vehicle_type: vehicleData.vehicleType,
-      //   service_types: vehicleData.serviceTypes,
-      //   expected_earnings: vehicleData.expectedEarnings,
-      //   timestamp: new Date().toISOString()
-      // }
-
-      // For now, save to localStorage for development
+      console.log('🚗 Saving vehicle selection:', vehicleData);
+      await driverOnboardingApi.updateVehicle(vehicleData.vehicleType, vehicleData.serviceTypes);
+      
+      // Also save to localStorage for backward compatibility
       localStorage.setItem('raahi_driver_vehicle_type', vehicleData.vehicleType);
       localStorage.setItem('raahi_driver_service_types', JSON.stringify(vehicleData.serviceTypes));
       localStorage.setItem('raahi_driver_expected_earnings', JSON.stringify(vehicleData.expectedEarnings));
-
+      
+      toast.success('Vehicle information saved');
       onContinue(vehicleData);
     } catch (error) {
-      console.error('Error saving vehicle selection:', error);
-      // Still proceed with local storage data
+      console.error('❌ Error saving vehicle selection:', error);
+      toast.error('Failed to save vehicle information');
+      // Still proceed with local storage data for better UX
+      localStorage.setItem('raahi_driver_vehicle_type', vehicleData.vehicleType);
+      localStorage.setItem('raahi_driver_service_types', JSON.stringify(vehicleData.serviceTypes));
       onContinue(vehicleData);
     }
   };

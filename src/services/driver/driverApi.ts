@@ -42,6 +42,16 @@ interface DriverProfile {
     license_verified: boolean;
     insurance_verified: boolean;
     vehicle_registration_verified: boolean;
+    all_verified?: boolean;
+    pending_count?: number;
+  };
+  onboarding?: {
+    status: string;
+    is_verified: boolean;
+    documents_submitted: boolean;
+    documents_verified: boolean;
+    can_start_rides: boolean;
+    verification_notes?: string;
   };
   status: 'active' | 'inactive' | 'suspended';
   rating: number;
