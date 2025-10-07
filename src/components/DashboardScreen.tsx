@@ -169,7 +169,7 @@ export default function DashboardScreen({ onFindRide, onOpenDriversApp, onSwitch
           e.currentTarget.dataset.clicks = clicks.toString();
           if (clicks >= 5 && onOpenAdmin) {
             e.currentTarget.dataset.clicks = '0';
-            console.log('🔓 Admin access unlocked!');
+            console.log('Admin access unlocked!');
             onOpenAdmin();
           }
         }}

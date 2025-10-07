@@ -1,8 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "./ui/button";
-import { Card, CardContent } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { Avatar, AvatarFallback } from "./ui/avatar";
 import { driverApi, DriverProfile } from '../services/driver/driverApi';
 import { realTimeService } from '../services/realTimeService';
 import DriverTrackingScreen from './DriverTrackingScreen';
@@ -24,14 +21,22 @@ const RAAHI_COLORS = {
   border: '#a89c8a',
   success: '#38a35f',
   golden: '#c06821',
+  blue: '#0080FF',
+  white: '#FFFFFF',
+  gray: '#666666',
+  lightGray: '#F5F5F5',
+  mapBg: '#E5E5E5',
 };
 
 export default function DriverDashboardScreen({ 
   onBack, 
   onToggleOnline, 
-  userEmail,
   isOnline = false 
 }: DriverDashboardScreenProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const googleMapRef = useRef<any>(null);
+  const driverMarkerRef = useRef<any>(null);
+
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [earnings, setEarnings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -40,14 +45,103 @@ export default function DriverDashboardScreen({
   const [showRideRequest, setShowRideRequest] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<'dashboard' | 'tracking'>('dashboard');
   const [acceptedRide, setAcceptedRide] = useState<any>(null);
-  
-  // Uber-like driver states
-  const [driverState, setDriverState] = useState<'offline' | 'online' | 'looking_for_rides' | 'en_route_to_pickup' | 'arrived_at_pickup' | 'passenger_picked_up' | 'trip_started'>('offline');
-  const [isLookingForRides, setIsLookingForRides] = useState(false);
-  
+  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number }>({
+    lat: 28.6139, // Default Delhi location
+    lng: 77.2090,
+  });
+  const [currentDate, setCurrentDate] = useState<string>('');
+  const [nearbyLocation, setNearbyLocation] = useState<string>('Peer Baba Dargah');
+  const [showMenu, setShowMenu] = useState(false);
+
   // Verification status
   const [canStartRides, setCanStartRides] = useState(true);
-  const [verificationNotes, setVerificationNotes] = useState<string | null>(null);
+
+  // Initialize Google Map
+  useEffect(() => {
+    if (!mapRef.current || typeof google === 'undefined') return;
+
+    // Initialize map
+    const map = new (window as any).google.maps.Map(mapRef.current, {
+      center: driverLocation,
+      zoom: 15,
+      disableDefaultUI: true,
+      zoomControl: false,
+      mapTypeControl: false,
+      scaleControl: false,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false,
+      styles: [
+        {
+          featureType: 'poi',
+          elementType: 'labels',
+          stylers: [{ visibility: 'off' }],
+        },
+      ],
+    });
+
+    googleMapRef.current = map;
+
+    // Add driver marker
+    const marker = new (window as any).google.maps.Marker({
+      position: driverLocation,
+      map: map,
+      icon: {
+        path: (window as any).google.maps.SymbolPath.CIRCLE,
+        scale: 12,
+        fillColor: '#0080FF',
+        fillOpacity: 1,
+        strokeColor: '#FFFFFF',
+        strokeWeight: 3,
+      },
+    });
+
+    driverMarkerRef.current = marker;
+
+    // Get current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const newPos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setDriverLocation(newPos);
+          map.setCenter(newPos);
+          marker.setPosition(newPos);
+
+          // Reverse geocode to get nearby location name
+          const geocoder = new (window as any).google.maps.Geocoder();
+          geocoder.geocode({ location: newPos }, (results: any, status: any) => {
+            if (status === 'OK' && results && results[0]) {
+              const addressComponents = results[0].address_components;
+              const locality = addressComponents.find((comp: any) => 
+                comp.types.includes('locality') || comp.types.includes('sublocality')
+              );
+              if (locality) {
+                setNearbyLocation(locality.long_name);
+              }
+            }
+          });
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+        }
+      );
+    }
+  }, []);
+
+  // Update date
+  useEffect(() => {
+    const updateDate = () => {
+      const now = new Date();
+      const formatted = `Today - ${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
+      setCurrentDate(formatted);
+    };
+    updateDate();
+    const interval = setInterval(updateDate, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
 
   // Load driver data on component mount
   useEffect(() => {
@@ -56,7 +150,6 @@ export default function DriverDashboardScreen({
         setLoading(true);
         console.log('🚗 Loading driver dashboard data...');
         
-        // Load driver profile and earnings in parallel
         const [profileData, earningsData] = await Promise.all([
           driverApi.getDriverProfile(),
           driverApi.getDriverEarnings()
@@ -66,22 +159,11 @@ export default function DriverDashboardScreen({
         setEarnings(earningsData);
         setOnlineStatus(profileData.is_online || false);
         
-        // Check verification status
         if (profileData.onboarding) {
           setCanStartRides(profileData.onboarding.can_start_rides);
-          setVerificationNotes(profileData.onboarding.verification_notes || null);
-          
-          console.log('🚗 Verification status:', {
-            can_start_rides: profileData.onboarding.can_start_rides,
-            documents_verified: profileData.onboarding.documents_verified,
-            is_verified: profileData.onboarding.is_verified
-          });
         }
         
-        console.log('🚗 Driver dashboard data loaded successfully', {
-          profile: profileData,
-          earnings: earningsData
-        });
+        console.log('🚗 Driver dashboard data loaded successfully');
       } catch (error) {
         console.error('🚗 Error loading driver dashboard data:', error);
       } finally {
@@ -94,21 +176,17 @@ export default function DriverDashboardScreen({
 
   // WebSocket connection and ride request handling
   useEffect(() => {
-    // Connect to WebSocket
     realTimeService.connect();
 
-    // Join driver room when driver profile is loaded
     if (driverProfile?.driver_id) {
       realTimeService.joinDriverRoom(driverProfile.driver_id);
     }
 
-    // Listen for new ride requests
     realTimeService.onNewRideRequest((rideRequest) => {
       console.log('🚨 NEW RIDE REQUEST:', rideRequest);
       setNewRideRequest(rideRequest);
       setShowRideRequest(true);
       
-      // Auto-hide after 30 seconds if not responded
       setTimeout(() => {
         if (showRideRequest) {
           setShowRideRequest(false);
@@ -117,7 +195,6 @@ export default function DriverDashboardScreen({
       }, 30000);
     });
 
-    // Listen for ride taken notifications
     realTimeService.onRideTaken((data) => {
       if (data.rideId === newRideRequest?.rideId) {
         console.log('🚫 Ride taken by another driver');
@@ -126,7 +203,6 @@ export default function DriverDashboardScreen({
       }
     });
 
-    // Cleanup on unmount
     return () => {
       if (driverProfile?.driver_id) {
         realTimeService.leaveDriverRoom(driverProfile.driver_id);
@@ -135,149 +211,88 @@ export default function DriverDashboardScreen({
     };
   }, [driverProfile?.driver_id, showRideRequest, newRideRequest?.rideId]);
 
-  // Handle GO button - start looking for rides (Uber-like workflow)
+  // Handle GO Online
   const handleGoOnline = async () => {
+    if (!canStartRides) {
+      alert('Your documents are still being verified. Please wait for approval before going online.');
+      return;
+    }
+
     try {
-      console.log('🚀 Driver going online and looking for rides...');
-      
+      console.log('🚀 Driver going online...');
       const success = await driverApi.updateOnlineStatus(true);
       
       if (success) {
         setOnlineStatus(true);
-        setDriverState('looking_for_rides');
-        setIsLookingForRides(true);
         onToggleOnline(true);
         
-        // Join driver room for ride requests
         if (driverProfile?.driver_id) {
           realTimeService.joinDriverRoom(driverProfile.driver_id);
         }
         
-        console.log('✅ Driver is now online and looking for rides');
-      } else {
-        console.error('❌ Failed to go online:', 'API call failed');
+        console.log('✅ Driver is now online');
       }
     } catch (error) {
       console.error('❌ Error going online:', error);
     }
   };
 
-  // Handle going offline
+  // Handle GO Offline
   const handleGoOffline = async () => {
     try {
       console.log('🛑 Driver going offline...');
-      
       const success = await driverApi.updateOnlineStatus(false);
       
       if (success) {
         setOnlineStatus(false);
-        setDriverState('offline');
-        setIsLookingForRides(false);
         onToggleOnline(false);
         
-        // Leave driver room
         if (driverProfile?.driver_id) {
           realTimeService.leaveDriverRoom(driverProfile.driver_id);
         }
         
         console.log('✅ Driver is now offline');
-      } else {
-        console.error('❌ Failed to go offline:', 'API call failed');
       }
     } catch (error) {
       console.error('❌ Error going offline:', error);
     }
   };
 
-  // Handle ride request acceptance (Uber-like workflow)
+  // Handle ride acceptance
   const handleAcceptRide = () => {
     if (newRideRequest && driverProfile?.driver_id) {
       realTimeService.acceptRideRequest(newRideRequest.rideId, driverProfile.driver_id);
       setShowRideRequest(false);
       setNewRideRequest(null);
-      setDriverState('en_route_to_pickup');
-      setIsLookingForRides(false);
-      console.log('✅ Ride accepted:', newRideRequest.rideId);
-      
-      // Navigate to tracking screen
       setCurrentScreen('tracking');
       setAcceptedRide(newRideRequest);
+      console.log('✅ Ride accepted:', newRideRequest.rideId);
     }
   };
 
-  // Handle ride request rejection - keeping for potential future use
-  // const handleRejectRide = () => {
-  //   if (newRideRequest && driverProfile?.driver_id) {
-  //     realTimeService.rejectRideRequest(newRideRequest.rideId, driverProfile.driver_id);
-  //     setShowRideRequest(false);
-  //     setNewRideRequest(null);
-  //     console.log('❌ Ride rejected:', newRideRequest.rideId);
-  //     // Stay in looking_for_rides state
-  //   }
-  // };
-
-  // Handle arriving at pickup location
-  const handleArrivedAtPickup = () => {
-    setDriverState('arrived_at_pickup');
-    console.log('🚗 Driver arrived at pickup location - notifying passenger');
-    
-    // Send notification to passenger via WebSocket
-    if (acceptedRide?.rideId && driverProfile?.driver_id) {
-      realTimeService.notifyPassengerArrival(acceptedRide.rideId, driverProfile.driver_id);
-    }
-  };
-
-  // Handle picking up passenger
-  const handlePickupPassenger = () => {
-    setDriverState('passenger_picked_up');
-    console.log('👤 Passenger picked up - ready to start ride');
-  };
-
-  // Handle starting trip (Uber-like workflow)
-  const handleStartTrip = () => {
-    setDriverState('trip_started');
-    console.log('🚗 Trip started - navigating to destination');
-  };
-
-  // Handle trip completion (Uber-like workflow)
+  // Handle trip completion
   const handleTripComplete = () => {
     setCurrentScreen('dashboard');
     setAcceptedRide(null);
-    setDriverState('looking_for_rides');
-    setIsLookingForRides(true);
-    console.log('✅ Trip completed, back to looking for rides');
+    console.log('✅ Trip completed');
   };
 
   // Handle trip cancellation
   const handleTripCancel = () => {
     setCurrentScreen('dashboard');
     setAcceptedRide(null);
-    setDriverState('looking_for_rides');
-    setIsLookingForRides(true);
-    console.log('❌ Trip cancelled, back to looking for rides');
+    console.log('❌ Trip cancelled');
   };
 
-  // Show tracking screen if driver accepted a ride
+  // Show tracking screen if ride accepted
   if (currentScreen === 'tracking' && acceptedRide) {
-    // Only pass valid trip states to DriverTrackingScreen
-    const validTripStates: ('en_route_to_pickup' | 'arrived_at_pickup' | 'passenger_picked_up' | 'trip_started')[] = [
-      'en_route_to_pickup',
-      'arrived_at_pickup', 
-      'passenger_picked_up',
-      'trip_started'
-    ];
-    
-    const currentTripState = validTripStates.includes(driverState as any) 
-      ? driverState as 'en_route_to_pickup' | 'arrived_at_pickup' | 'passenger_picked_up' | 'trip_started'
-      : undefined;
-
     return (
       <DriverTrackingScreen
         driver={{
           id: driverProfile?.driver_id || 'driver-id',
           name: driverProfile?.name || 'Driver',
           rating: driverProfile?.rating || 4.8,
-          vehicle: driverProfile?.vehicle_info?.model || 'Honda City',
+          vehicle: driverProfile?.vehicle_info?.model || 'Vehicle',
           phone: driverProfile?.phone || '+91 98765 43210',
           rideId: acceptedRide.rideId
         }}
@@ -287,583 +302,490 @@ export default function DriverDashboardScreen({
         onTripComplete={handleTripComplete}
         onCancel={handleTripCancel}
         isDriverView={true}
-        tripState={currentTripState}
-        onStartTrip={handleStartTrip}
-        onArrivedAtPickup={handleArrivedAtPickup}
-        onPickupPassenger={handlePickupPassenger}
       />
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: RAAHI_COLORS.background }}>
-      {/* Header - Figma Style */}
-      <div className="p-6 pb-8">
-        <div className="flex items-center justify-between mb-8">
-          <Button 
-            variant="ghost" 
-            onClick={onBack}
-            className="p-2 rounded-full hover:bg-white/50"
-            style={{ color: RAAHI_COLORS.dark }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="15,18 9,12 15,6"></polyline>
-            </svg>
-          </Button>
-          
-          <div className="text-center">
-            <h1 style={{ 
-              fontFamily: 'Samarkan, Arial', 
-              color: RAAHI_COLORS.dark,
-              fontSize: '42px',
-              fontWeight: 'normal',
-              letterSpacing: '1px'
-            }}>
-              Raahi
-            </h1>
-            <p style={{
-              fontSize: '12px',
-              color: RAAHI_COLORS.secondary,
-              marginTop: '-4px'
-            }}>Driver</p>
+    <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}>
+      {/* Google Map */}
+      <div 
+        ref={mapRef} 
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          backgroundColor: RAAHI_COLORS.mapBg
+        }} 
+      />
+
+      {/* Top Header */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '16px',
+        backgroundColor: 'transparent',
+        zIndex: 10,
+      }}>
+        {/* Hamburger Menu */}
+        <button
+          onClick={() => setShowMenu(!showMenu)}
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            backgroundColor: RAAHI_COLORS.white,
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            position: 'relative',
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.dark} strokeWidth="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+          {/* Notification Badge */}
+          <div style={{
+            position: 'absolute',
+            top: '4px',
+            right: '4px',
+            width: '20px',
+            height: '20px',
+            borderRadius: '50%',
+            backgroundColor: RAAHI_COLORS.blue,
+            color: RAAHI_COLORS.white,
+            fontSize: '10px',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            90
           </div>
-          
-          <Button 
-            variant="ghost" 
-            className="text-sm px-3 py-1"
-            style={{ 
-              color: RAAHI_COLORS.primary,
-              border: `1px solid ${RAAHI_COLORS.border}`
-            }}
-          >
-            Support
-          </Button>
-        </div>
+        </button>
 
-        {/* Driver Profile Card - Figma Style */}
-        <Card className="mb-6 border-0 shadow-md" style={{ 
-          backgroundColor: 'white',
-          borderRadius: '20px'
+        {/* Center: Earnings Badge */}
+        <div style={{
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          borderRadius: '24px',
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
         }}>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-4">
-              <Avatar className="h-20 w-20 border-4" style={{ borderColor: RAAHI_COLORS.secondary }}>
-                <AvatarFallback style={{ 
-                  backgroundColor: RAAHI_COLORS.primary, 
-                  color: 'white',
-                  fontSize: '28px',
-                  fontWeight: 'bold'
-                }}>
-                  {loading ? '...' : (driverProfile?.name?.charAt(0).toUpperCase() || userEmail?.charAt(0).toUpperCase() || 'D')}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <h2 style={{ 
-                  color: RAAHI_COLORS.dark,
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  marginBottom: '4px'
-                }}>
-                  {loading ? 'Loading...' : (driverProfile?.name || userEmail?.split('@')[0] || 'Driver')}
-                </h2>
-                <p style={{ 
-                  color: RAAHI_COLORS.secondary,
-                  fontSize: '14px',
-                  marginBottom: '8px'
-                }}>
-                  Professional Driver
-                </p>
-                <div className="flex items-center space-x-2">
-                  <Badge style={{ 
-                    backgroundColor: RAAHI_COLORS.primary, 
-                    color: 'white',
-                    padding: '4px 12px',
-                    borderRadius: '12px'
-                  }}>
-                    ⭐ {loading ? '...' : (driverProfile?.rating?.toFixed(1) || '4.8')}
-                  </Badge>
-                  <Badge style={{ 
-                    backgroundColor: RAAHI_COLORS.lightBg,
-                    color: RAAHI_COLORS.dark,
-                    border: `1px solid ${RAAHI_COLORS.border}`,
-                    padding: '4px 12px',
-                    borderRadius: '12px'
-                  }}>
-                    {loading ? '...' : (driverProfile?.total_trips || 127)} Trips
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* GO Button / Verification Status - Figma Style */}
-        <Card className="mb-6 border-0 shadow-md" style={{ borderRadius: '20px' }}>
-          <CardContent className="p-6 text-center">
-            {!canStartRides ? (
-              /* Document Verification Pending */
-              <div>
-                <div className="mb-4 flex justify-center">
-                  <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: RAAHI_COLORS.lightBg }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <circle cx="12" cy="15" r="3"></circle>
-                    </svg>
-                  </div>
-                </div>
-                <h3 style={{ 
-                  color: RAAHI_COLORS.dark, 
-                  fontWeight: 'bold', 
-                  fontSize: '20px',
-                  marginBottom: '8px' 
-                }}>
-                  Document Verification Pending
-                </h3>
-                <p style={{ 
-                  color: RAAHI_COLORS.secondary, 
-                  fontSize: '14px', 
-                  marginBottom: '20px',
-                  lineHeight: '1.5'
-                }}>
-                  Your documents are being reviewed by our team. This usually takes 24-48 hours.
-                </p>
-                <div style={{ 
-                  backgroundColor: RAAHI_COLORS.lightBg,
-                  border: `2px solid ${RAAHI_COLORS.border}`,
-                  borderRadius: '16px',
-                  padding: '16px',
-                  marginTop: '16px'
-                }}>
-                  <p style={{ 
-                    color: RAAHI_COLORS.dark, 
-                    fontSize: '14px', 
-                    fontWeight: '600',
-                    marginBottom: '4px'
-                  }}>
-                    ⏳ Verification in Progress
-                  </p>
-                  <p style={{ 
-                    color: RAAHI_COLORS.secondary, 
-                    fontSize: '13px'
-                  }}>
-                    You can start accepting rides once your documents are verified ✅
-                  </p>
-                  {verificationNotes && (
-                    <p style={{ 
-                      color: RAAHI_COLORS.primary, 
-                      fontSize: '12px',
-                      marginTop: '8px',
-                      fontStyle: 'italic'
-                    }}>
-                      Note: {verificationNotes}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : driverState === 'offline' ? (
-              /* Ready to Go Online */
-              <div>
-                <h3 style={{ 
-                  color: RAAHI_COLORS.dark, 
-                  fontWeight: 'bold', 
-                  fontSize: '20px',
-                  marginBottom: '8px' 
-                }}>
-                  Ready to earn?
-                </h3>
-                <p style={{ 
-                  color: RAAHI_COLORS.secondary, 
-                  fontSize: '14px', 
-                  marginBottom: '24px' 
-                }}>
-                  Tap GO to start accepting ride requests
-                </p>
-                <Button 
-                  onClick={handleGoOnline}
-                  disabled={loading}
-                  className="w-full py-6 text-xl font-bold shadow-lg hover:shadow-xl transition-all"
-                  style={{ 
-                    backgroundColor: RAAHI_COLORS.success,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '40px',
-                    fontSize: '24px',
-                    letterSpacing: '2px'
-                  }}
-                >
-                  GO
-                </Button>
-              </div>
-            ) : null}
-            
-            {driverState === 'looking_for_rides' && (
-              <div>
-                <div className="animate-pulse mb-4">
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: RAAHI_COLORS.success }}></div>
-                    <h3 style={{ 
-                      color: RAAHI_COLORS.dark, 
-                      fontWeight: 'bold', 
-                      fontSize: '20px'
-                    }}>
-                      You're Online
-                    </h3>
-                  </div>
-                </div>
-                <p style={{ 
-                  color: RAAHI_COLORS.secondary, 
-                  fontSize: '14px', 
-                  marginBottom: '24px' 
-                }}>
-                  Looking for ride requests nearby...
-                </p>
-                <Button 
-                  onClick={handleGoOffline}
-                  disabled={loading}
-                  className="w-full py-4 text-lg font-semibold border-2"
-                  style={{ 
-                    borderColor: RAAHI_COLORS.border,
-                    backgroundColor: 'transparent',
-                    color: RAAHI_COLORS.dark,
-                    borderRadius: '40px'
-                  }}
-                >
-                  Go Offline
-                </Button>
-              </div>
-            )}
-            
-            {driverState === 'en_route_to_pickup' && (
-              <div>
-                <h3 style={{ 
-                  color: RAAHI_COLORS.dark, 
-                  fontWeight: 'bold', 
-                  fontSize: '20px',
-                  marginBottom: '8px' 
-                }}>
-                  🚗 En route to pickup
-                </h3>
-                <p style={{ color: RAAHI_COLORS.secondary, fontSize: '14px' }}>
-                  Navigate to your passenger's location
-                </p>
-              </div>
-            )}
-            
-            {driverState === 'arrived_at_pickup' && (
-              <div>
-                <h3 style={{ 
-                  color: RAAHI_COLORS.dark, 
-                  fontWeight: 'bold', 
-                  fontSize: '20px',
-                  marginBottom: '8px' 
-                }}>
-                  📍 Arrived at pickup
-                </h3>
-                <p style={{ color: RAAHI_COLORS.secondary, fontSize: '14px' }}>
-                  Passenger has been notified of your arrival
-                </p>
-              </div>
-            )}
-            
-            {driverState === 'passenger_picked_up' && (
-              <div>
-                <h3 style={{ 
-                  color: RAAHI_COLORS.dark, 
-                  fontWeight: 'bold', 
-                  fontSize: '20px',
-                  marginBottom: '8px' 
-                }}>
-                  👤 Passenger on board
-                </h3>
-                <p style={{ color: RAAHI_COLORS.secondary, fontSize: '14px' }}>
-                  Ready to start the trip
-                </p>
-              </div>
-            )}
-            
-            {driverState === 'trip_started' && (
-              <div>
-                <h3 style={{ 
-                  color: RAAHI_COLORS.dark, 
-                  fontWeight: 'bold', 
-                  fontSize: '20px',
-                  marginBottom: '8px' 
-                }}>
-                  🎯 Trip in progress
-                </h3>
-                <p style={{ color: RAAHI_COLORS.secondary, fontSize: '14px' }}>
-                  Navigate to destination
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Earnings Stats - Figma Style */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <Card className="border-0 shadow-md" style={{ 
-            borderRadius: '20px',
-            background: `linear-gradient(135deg, ${RAAHI_COLORS.primary} 0%, ${RAAHI_COLORS.golden} 100%)`
-          }}>
-            <CardContent className="p-6 text-center">
-              <div style={{ 
-                color: 'white', 
-                fontSize: '32px', 
-                fontWeight: 'bold',
-                marginBottom: '8px'
-              }}>
-                {loading ? '...' : `₹${earnings?.today?.amount?.toLocaleString() || '$$$'}`}
-              </div>
-              <div style={{ 
-                color: 'rgba(255,255,255,0.9)', 
-                fontSize: '14px',
-                fontWeight: '500'
-              }}>
-                Today's Earnings
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-0 shadow-md" style={{ 
-            borderRadius: '20px',
-            backgroundColor: 'white'
-          }}>
-            <CardContent className="p-6 text-center">
-              <div style={{ 
-                color: RAAHI_COLORS.dark, 
-                fontSize: '32px', 
-                fontWeight: 'bold',
-                marginBottom: '8px'
-              }}>
-                {loading ? '...' : (earnings?.today?.trips || 8)}
-              </div>
-              <div style={{ 
-                color: RAAHI_COLORS.secondary, 
-                fontSize: '14px',
-                fontWeight: '500'
-              }}>
-                Trips Today
-              </div>
-            </CardContent>
-          </Card>
+          <span style={{ color: RAAHI_COLORS.success, fontSize: '18px', fontWeight: 'bold' }}>₹</span>
+          <span style={{ color: RAAHI_COLORS.white, fontSize: '18px', fontWeight: 'bold' }}>
+            {loading ? '0.00' : earnings?.today?.amount?.toFixed(2) || '0.00'}
+          </span>
         </div>
 
-        {/* Quick Actions - Figma Style */}
-        <div className="space-y-3">
-          <h3 style={{ 
-            color: RAAHI_COLORS.dark, 
-            fontWeight: 'bold', 
-            fontSize: '18px',
-            marginBottom: '16px' 
-          }}>
-            Quick Actions
-          </h3>
-          
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" style={{ borderRadius: '16px' }}>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-sm" style={{ backgroundColor: RAAHI_COLORS.primary }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12,6 12,12 16,14"></polyline>
-                  </svg>
-                </div>
-                <div className="flex-1 text-left">
-                  <div style={{ fontWeight: 'bold', color: RAAHI_COLORS.dark, fontSize: '16px' }}>Trip History</div>
-                  <div style={{ color: RAAHI_COLORS.secondary, fontSize: '13px' }}>View your completed rides</div>
-                </div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.secondary} strokeWidth="2">
-                  <polyline points="9,18 15,12 9,6"></polyline>
-                </svg>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Search Icon */}
+        <button
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            backgroundColor: RAAHI_COLORS.white,
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.dark} strokeWidth="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+        </button>
+      </div>
 
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" style={{ borderRadius: '16px' }}>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-sm" style={{ backgroundColor: RAAHI_COLORS.primary }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                  </svg>
-                </div>
-                <div className="flex-1 text-left">
-                  <div style={{ fontWeight: 'bold', color: RAAHI_COLORS.dark, fontSize: '16px' }}>Earnings Report</div>
-                  <div style={{ color: RAAHI_COLORS.secondary, fontSize: '13px' }}>View detailed earnings</div>
-                </div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.secondary} strokeWidth="2">
-                  <polyline points="9,18 15,12 9,6"></polyline>
-                </svg>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" style={{ borderRadius: '16px' }}>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-sm" style={{ backgroundColor: RAAHI_COLORS.primary }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                  </svg>
-                </div>
-                <div className="flex-1 text-left">
-                  <div style={{ fontWeight: 'bold', color: RAAHI_COLORS.dark, fontSize: '16px' }}>Profile Settings</div>
-                  <div style={{ color: RAAHI_COLORS.secondary, fontSize: '13px' }}>Update your information</div>
-                </div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.secondary} strokeWidth="2">
-                  <polyline points="9,18 15,12 9,6"></polyline>
-                </svg>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Date and Location Info */}
+      <div style={{
+        position: 'absolute',
+        top: '80px',
+        left: '16px',
+        right: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+        zIndex: 10,
+      }}>
+        <div style={{
+          color: RAAHI_COLORS.dark,
+          fontSize: '14px',
+          fontWeight: '600',
+          textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+        }}>
+          {currentDate}
         </div>
-
-          {/* Online Status Banner */}
-          {onlineStatus && isLookingForRides && (
-            <Card className="mt-6 border-0 shadow-lg" style={{ 
-              background: `linear-gradient(135deg, ${RAAHI_COLORS.success} 0%, #2d8a4f 100%)`,
-              borderRadius: '20px'
-            }}>
-              <CardContent className="p-5 text-center">
-                <div className="animate-pulse">
-                  <div className="flex items-center justify-center space-x-2 mb-2">
-                    <div className="w-3 h-3 bg-white rounded-full"></div>
-                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '18px' }}>
-                      🚗 Looking for rides nearby
-                    </div>
-                  </div>
-                  <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: '14px' }}>
-                    You'll be notified when a ride request comes in
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Ride Request Modal - Figma Style */}
-          {showRideRequest && newRideRequest && (
-            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-              <Card className="w-full max-w-md border-0 shadow-2xl animate-in" style={{ 
-                backgroundColor: 'white',
-                borderRadius: '24px',
-                border: `3px solid ${newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden}`
-              }}>
-                <CardContent className="p-6">
-                  {/* Ride Type Badge */}
-                  <div className="text-center mb-4">
-                    <Badge style={{ 
-                      backgroundColor: newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden,
-                      color: 'white',
-                      padding: '8px 20px',
-                      fontSize: '14px',
-                      borderRadius: '20px',
-                      fontWeight: 'bold'
-                    }}>
-                      {newRideRequest.rideType === 'bike' ? '🏍️ Bike Rescue' : '🚗 Raahi Driver'}
-                    </Badge>
-                  </div>
-
-                  {/* Earnings */}
-                  <div className="text-center mb-6">
-                    <p style={{ color: RAAHI_COLORS.secondary, fontSize: '14px', marginBottom: '4px' }}>
-                      Earning
-                    </p>
-                    <p style={{ 
-                      color: newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden,
-                      fontSize: '36px',
-                      fontWeight: 'bold',
-                      lineHeight: '1'
-                    }}>
-                      ₹{newRideRequest.estimatedFare}
-                    </p>
-                  </div>
-
-                  {/* Distance Info - Figma Style */}
-                  <div className="mb-6 p-4 rounded-2xl" style={{ backgroundColor: newRideRequest.rideType === 'bike' ? '#f0faf4' : '#fff9f3' }}>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <p style={{ fontSize: '14px', color: RAAHI_COLORS.dark }}>Pickup Distance</p>
-                        <div className="text-right">
-                          <p style={{ fontSize: '18px', fontWeight: 'bold', color: RAAHI_COLORS.dark }}>
-                            {newRideRequest.pickupDistance || '1.5'} km
-                          </p>
-                          <p style={{ fontSize: '12px', color: RAAHI_COLORS.secondary }}>
-                            {Math.ceil((newRideRequest.pickupDistance || 1.5) * 3)} min away
-                          </p>
-                        </div>
-                      </div>
-                      <div className="border-t border-gray-200"></div>
-                      <div className="flex items-center justify-between">
-                        <p style={{ fontSize: '14px', color: RAAHI_COLORS.dark }}>Drop Distance</p>
-                        <div className="text-right">
-                          <p style={{ fontSize: '18px', fontWeight: 'bold', color: newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden }}>
-                            {newRideRequest.distance} km
-                          </p>
-                          <p style={{ fontSize: '12px', color: RAAHI_COLORS.secondary }}>
-                            {Math.ceil(newRideRequest.distance * 2)} min away
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Locations */}
-                  <div className="mb-6">
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <p style={{ fontSize: '16px', fontWeight: 'bold', color: RAAHI_COLORS.dark }}>Pickup</p>
-                      <p style={{ fontSize: '16px', fontWeight: 'bold', color: RAAHI_COLORS.dark }}>Drop</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <p style={{ fontSize: '13px', color: RAAHI_COLORS.secondary, lineHeight: '1.4' }}>
-                        {newRideRequest.pickupLocation.address}
-                      </p>
-                      <p style={{ fontSize: '13px', color: RAAHI_COLORS.secondary, lineHeight: '1.4' }}>
-                        {newRideRequest.dropLocation.address}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Passenger & Payment Info */}
-                  <div className="mb-6 flex justify-between text-sm">
-                    <div>
-                      <span style={{ color: RAAHI_COLORS.secondary }}>👤 </span>
-                      <span style={{ color: RAAHI_COLORS.dark, fontWeight: '500' }}>{newRideRequest.passengerName}</span>
-                    </div>
-                    <div>
-                      <span style={{ color: RAAHI_COLORS.secondary }}>💳 </span>
-                      <span style={{ color: RAAHI_COLORS.dark, fontWeight: '500' }}>{newRideRequest.paymentMethod}</span>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons - Figma Style */}
-                  <Button
-                    onClick={handleAcceptRide}
-                    className="w-full py-6 text-lg font-bold shadow-lg mb-3"
-                    style={{ 
-                      backgroundColor: newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden,
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '20px'
-                    }}
-                  >
-                    Accept Ride →
-                  </Button>
-
-                  {/* Auto-decline timer */}
-                  <div className="text-center">
-                    <p style={{ color: RAAHI_COLORS.secondary, fontSize: '12px' }}>
-                      Auto-declines in 30 seconds
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+        <div style={{
+          color: RAAHI_COLORS.gray,
+          fontSize: '12px',
+          textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+        }}>
+          {nearbyLocation}
         </div>
       </div>
-    );
-  }
+
+      {/* Go Online/Offline Button */}
+      <div style={{
+        position: 'absolute',
+        bottom: '220px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 10,
+      }}>
+        <Button
+          onClick={onlineStatus ? handleGoOffline : handleGoOnline}
+          disabled={loading || !canStartRides}
+          style={{
+            backgroundColor: onlineStatus ? RAAHI_COLORS.gray : RAAHI_COLORS.blue,
+            color: RAAHI_COLORS.white,
+            border: `4px solid ${RAAHI_COLORS.white}`,
+            borderRadius: '50px',
+            padding: '16px 48px',
+            fontSize: '24px',
+            fontWeight: 'bold',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            cursor: canStartRides ? 'pointer' : 'not-allowed',
+            opacity: loading || !canStartRides ? 0.7 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          {onlineStatus ? 'Go Offline' : 'Go Online'}
+          {!onlineStatus && (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          )}
+        </Button>
+      </div>
+
+      {/* Bottom Sheet */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: RAAHI_COLORS.white,
+        borderTopLeftRadius: '24px',
+        borderTopRightRadius: '24px',
+        boxShadow: '0 -4px 16px rgba(0,0,0,0.1)',
+        zIndex: 10,
+        padding: '24px 16px',
+      }}>
+        {/* Status Text */}
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '16px',
+        }}>
+          <h2 style={{
+            fontSize: '24px',
+            fontWeight: 'bold',
+            color: RAAHI_COLORS.dark,
+            marginBottom: '8px',
+          }}>
+            {onlineStatus ? "You're Online" : "You're Offline"}
+          </h2>
+          {!canStartRides && (
+            <p style={{
+              fontSize: '14px',
+              color: RAAHI_COLORS.gray,
+              marginBottom: '8px',
+            }}>
+              Document verification pending
+            </p>
+          )}
+          {onlineStatus && (
+            <p style={{
+              fontSize: '14px',
+              color: RAAHI_COLORS.gray,
+            }}>
+              Looking for ride requests...
+            </p>
+          )}
+          {!onlineStatus && (
+            <p style={{
+              fontSize: '14px',
+              color: RAAHI_COLORS.gray,
+            }}>
+              Tap "Go Online" to start receiving ride requests
+            </p>
+          )}
+        </div>
+
+        {/* Account Section */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: '16px',
+          paddingTop: '16px',
+          borderTop: `1px solid ${RAAHI_COLORS.border}`,
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.gray} strokeWidth="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span style={{
+              fontSize: '14px',
+              color: RAAHI_COLORS.gray,
+            }}>
+              Account
+            </span>
+          </div>
+          
+          <button
+            onClick={onBack}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.dark} strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Ride Request Modal */}
+      {showRideRequest && newRideRequest && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100,
+          padding: '16px',
+        }}>
+          <div style={{
+            backgroundColor: RAAHI_COLORS.white,
+            borderRadius: '24px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '100%',
+            border: `3px solid ${newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden}`,
+          }}>
+            {/* Ride Type */}
+            <div style={{
+              textAlign: 'center',
+              marginBottom: '16px',
+            }}>
+              <span style={{
+                backgroundColor: newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden,
+                color: RAAHI_COLORS.white,
+                padding: '8px 20px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+              }}>
+                {newRideRequest.rideType === 'bike' ? '🏍️ Bike Rescue' : '🚗 Raahi Driver'}
+              </span>
+            </div>
+
+            {/* Earning */}
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <p style={{ color: RAAHI_COLORS.gray, fontSize: '14px', marginBottom: '4px' }}>
+                Earning
+              </p>
+              <p style={{
+                color: newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden,
+                fontSize: '36px',
+                fontWeight: 'bold',
+              }}>
+                ₹{newRideRequest.estimatedFare}
+              </p>
+            </div>
+
+            {/* Distance Info */}
+            <div style={{
+              backgroundColor: newRideRequest.rideType === 'bike' ? '#f0faf4' : '#fff9f3',
+              borderRadius: '16px',
+              padding: '16px',
+              marginBottom: '20px',
+            }}>
+              <div style={{ marginBottom: '12px' }}>
+                <p style={{ fontSize: '14px', color: RAAHI_COLORS.dark }}>Pickup Distance</p>
+                <p style={{ fontSize: '18px', fontWeight: 'bold', color: RAAHI_COLORS.dark }}>
+                  {newRideRequest.pickupDistance || '1.5'} km
+                </p>
+                <p style={{ fontSize: '12px', color: RAAHI_COLORS.gray }}>
+                  {Math.ceil((newRideRequest.pickupDistance || 1.5) * 3)} min away
+                </p>
+              </div>
+              <div style={{ borderTop: `1px solid ${RAAHI_COLORS.border}`, paddingTop: '12px' }}>
+                <p style={{ fontSize: '14px', color: RAAHI_COLORS.dark }}>Drop Distance</p>
+                <p style={{
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  color: newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden,
+                }}>
+                  {newRideRequest.distance} km
+                </p>
+                <p style={{ fontSize: '12px', color: RAAHI_COLORS.gray }}>
+                  {Math.ceil(newRideRequest.distance * 2)} min away
+                </p>
+              </div>
+            </div>
+
+            {/* Locations */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '8px' }}>
+                <p style={{ fontSize: '16px', fontWeight: 'bold', color: RAAHI_COLORS.dark }}>Pickup</p>
+                <p style={{ fontSize: '16px', fontWeight: 'bold', color: RAAHI_COLORS.dark }}>Drop</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <p style={{ fontSize: '13px', color: RAAHI_COLORS.gray }}>
+                  {newRideRequest.pickupLocation.address}
+                </p>
+                <p style={{ fontSize: '13px', color: RAAHI_COLORS.gray }}>
+                  {newRideRequest.dropLocation.address}
+                </p>
+              </div>
+            </div>
+
+            {/* Accept Button */}
+            <Button
+              onClick={handleAcceptRide}
+              style={{
+                width: '100%',
+                backgroundColor: newRideRequest.rideType === 'bike' ? RAAHI_COLORS.success : RAAHI_COLORS.golden,
+                color: RAAHI_COLORS.white,
+                border: 'none',
+                borderRadius: '20px',
+                padding: '16px',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              Accept Ride →
+            </Button>
+
+            {/* Auto-decline timer */}
+            <p style={{ textAlign: 'center', marginTop: '12px', fontSize: '12px', color: RAAHI_COLORS.gray }}>
+              Auto-declines in 30 seconds
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Menu Sidebar (if needed) */}
+      {showMenu && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: '280px',
+            backgroundColor: RAAHI_COLORS.white,
+            boxShadow: '2px 0 16px rgba(0,0,0,0.2)',
+            zIndex: 50,
+            padding: '24px',
+          }}
+          onClick={() => setShowMenu(false)}
+        >
+          <h3 style={{
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: RAAHI_COLORS.dark,
+            marginBottom: '24px',
+          }}>
+            Menu
+          </h3>
+          
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+          }}>
+            <button
+              style={{
+                textAlign: 'left',
+                padding: '12px',
+                border: 'none',
+                background: 'none',
+                fontSize: '16px',
+                color: RAAHI_COLORS.dark,
+                cursor: 'pointer',
+              }}
+            >
+              Profile
+            </button>
+            <button
+              style={{
+                textAlign: 'left',
+                padding: '12px',
+                border: 'none',
+                background: 'none',
+                fontSize: '16px',
+                color: RAAHI_COLORS.dark,
+                cursor: 'pointer',
+              }}
+            >
+              Earnings
+            </button>
+            <button
+              style={{
+                textAlign: 'left',
+                padding: '12px',
+                border: 'none',
+                background: 'none',
+                fontSize: '16px',
+                color: RAAHI_COLORS.dark,
+                cursor: 'pointer',
+              }}
+            >
+              Trip History
+            </button>
+            <button
+              onClick={onBack}
+              style={{
+                textAlign: 'left',
+                padding: '12px',
+                border: 'none',
+                background: 'none',
+                fontSize: '16px',
+                color: RAAHI_COLORS.dark,
+                cursor: 'pointer',
+              }}
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
