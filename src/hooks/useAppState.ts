@@ -15,6 +15,8 @@ interface DriverData {
 type ScreenType = 
   | 'dashboard' 
   | 'login' 
+  | 'mobile-number'
+  | 'mobile-otp'
   | 'contact' 
   | 'otp' 
   | 'terms' 
@@ -82,13 +84,54 @@ export default function useAppState() {
           terms: localStorage.getItem('raahi_has_accepted_terms'),
           email: localStorage.getItem('raahi_user_email'),
           driverEmail: localStorage.getItem('raahi_driver_email'),
-          driverMode: localStorage.getItem('raahi_driver_mode') === 'true'
+          driverMode: localStorage.getItem('raahi_driver_mode') === 'true',
+          lastScreen: localStorage.getItem('raahi_last_screen') as ScreenType | null,
+          accessToken: localStorage.getItem('accessToken')
         };
 
         const hasAccepted = preferences.terms === 'true';
         const userEmail = preferences.email || preferences.driverEmail;
+        const hasToken = !!preferences.accessToken;
         
-        console.log("🔍 User preferences loaded (optimized)");
+        console.log("🔍 User preferences loaded (optimized)", {
+          hasAccepted,
+          userEmail,
+          driverMode: preferences.driverMode,
+          lastScreen: preferences.lastScreen,
+          hasToken
+        });
+
+        // 🎯 PRODUCTION FIX: Restore last screen if user has valid token
+        // This prevents redirecting to landing page on refresh
+        let initialScreen: ScreenType = 'dashboard';
+        
+        if (hasToken) {
+          // User has token - restore their last screen
+          const isLoginScreen = preferences.lastScreen === 'login' || 
+                                preferences.lastScreen === 'mobile-number' || 
+                                preferences.lastScreen === 'mobile-otp';
+          
+          const isAdminScreen = preferences.lastScreen === 'admin-dashboard';
+          
+          // CRITICAL: If last screen was admin, don't restore it automatically
+          // Admin access should require explicit navigation
+          if (preferences.lastScreen && !isLoginScreen && !isAdminScreen) {
+            initialScreen = preferences.lastScreen;
+            console.log("✅ Restoring last screen:", initialScreen);
+          } else if (preferences.driverMode) {
+            // Driver mode - ALWAYS go to driver dashboard, never admin
+            initialScreen = 'driver-dashboard';
+            console.log("✅ Driver with token - going to driver dashboard");
+          } else {
+            // Passenger with token - go to dashboard
+            initialScreen = 'dashboard';
+            console.log("✅ Passenger with token - going to dashboard");
+          }
+        } else {
+          // No token - always start at landing page
+          initialScreen = 'dashboard';
+          console.log("✅ No token - starting at landing page");
+        }
 
         startTransition(() => {
           setAppState(prev => ({
@@ -96,10 +139,10 @@ export default function useAppState() {
             hasAcceptedTerms: hasAccepted,
             isFirstTimeUser: !hasAccepted,
             userEmail,
-            isLoggedIn: hasAccepted && userEmail ? true : false,
-            loginMethod: hasAccepted && userEmail ? 'auto-login' : null,
+            isLoggedIn: false, // Let AuthContext set this
+            loginMethod: null,
             isDriverMode: preferences.driverMode,
-            currentScreen: 'dashboard',
+            currentScreen: initialScreen,
             isAppInitializing: false,
           }));
         });
@@ -123,7 +166,29 @@ export default function useAppState() {
   // 🚀 PERFORMANCE: Memoized update function with startTransition
   const updateAppState = React.useCallback((updates: Partial<AppState>) => {
     startTransition(() => {
-      setAppState(prev => ({ ...prev, ...updates }));
+      setAppState(prev => {
+        const newState = { ...prev, ...updates };
+        
+        // 🎯 PRODUCTION FIX: Persist current screen to localStorage
+        // This allows restoring the screen on page refresh
+        if (updates.currentScreen && updates.currentScreen !== prev.currentScreen) {
+          // Don't persist admin screens - require explicit navigation
+          if (updates.currentScreen !== 'admin-dashboard') {
+            localStorage.setItem('raahi_last_screen', updates.currentScreen);
+            console.log("💾 Saved last screen:", updates.currentScreen);
+          } else {
+            console.log("⚠️  Not persisting admin screen - requires explicit access");
+          }
+        }
+        
+        // Persist driver mode
+        if (updates.isDriverMode !== undefined && updates.isDriverMode !== prev.isDriverMode) {
+          localStorage.setItem('raahi_driver_mode', String(updates.isDriverMode));
+          console.log("💾 Saved driver mode:", updates.isDriverMode);
+        }
+        
+        return newState;
+      });
     });
   }, []);
 

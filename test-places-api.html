@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Places API Test</title>
+</head>
+<body>
+    <h1>Google Places API Test</h1>
+    <input type="text" id="searchInput" placeholder="Type an address..." style="width: 300px; padding: 10px;">
+    <div id="results"></div>
+
+    <script>
+        let autocompleteService;
+        
+        function initGoogleMaps() {
+            console.log('🗺️ Google Maps loaded');
+            autocompleteService = new google.maps.places.AutocompleteService();
+            
+            const searchInput = document.getElementById('searchInput');
+            const resultsDiv = document.getElementById('results');
+            
+            searchInput.addEventListener('input', function() {
+                const query = this.value;
+                if (query.length < 2) {
+                    resultsDiv.innerHTML = '';
+                    return;
+                }
+                
+                console.log('🔍 Searching for:', query);
+                
+                autocompleteService.getPlacePredictions({
+                    input: query,
+                    types: ['establishment', 'geocode'],
+                    componentRestrictions: { country: 'in' }
+                }, (predictions, status) => {
+                    console.log('📍 API Response:', { status, predictions });
+                    
+                    if (status === 'OK' && predictions) {
+                        resultsDiv.innerHTML = predictions.map(pred => 
+                            `<div style="padding: 5px; border: 1px solid #ccc; margin: 2px;">
+                                <strong>${pred.structured_formatting.main_text}</strong><br>
+                                <small>${pred.structured_formatting.secondary_text}</small>
+                            </div>`
+                        ).join('');
+                    } else {
+                        resultsDiv.innerHTML = `<div style="color: red;">Error: ${status}</div>`;
+                    }
+                });
+            });
+        }
+        
+        // Load Google Maps API
+        const script = document.createElement('script');
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyAaTuhvB_WuJosSUXfgMyhMxAD-6sEmfVc&libraries=places&callback=initGoogleMaps';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

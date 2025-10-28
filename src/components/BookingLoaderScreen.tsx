@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { rideAPI } from "../services/api";
 import { realTimeService } from "../services/realTimeService";
+import { geocodingService } from "../services/geocodingService";
 import svgPaths from "../imports/svg-wh69x1kzst";
-import imgUber0213C7Cd81E2 from "figma:asset/0c4e8a4be75e7d129875490702ea90e0ae00c34d.png";
-import imgImage from "figma:asset/176ba6c12ab7f022834992fb78872f1e9feeb9a4.png";
 
 function LoadingAnimation({ dots }) {
   return null;
@@ -79,6 +78,8 @@ export default function BookingLoaderScreen({
   selectedVehicle,
   pickupLocation,
   dropLocation,
+  pickupCoords,
+  dropCoords,
   onDriverFound,
   onCancel,
 }) {
@@ -129,6 +130,184 @@ export default function BookingLoaderScreen({
   */
   const [searchDots, setSearchDots] = useState(0);
   const [searchTime, setSearchTime] = useState(0);
+  const [isCreatingRide, setIsCreatingRide] = useState(false);
+  
+  // Google Maps references
+  const mapRef = useRef(null);
+  const googleMapRef = useRef(null);
+  const pickupMarkerRef = useRef(null);
+  const dropMarkerRef = useRef(null);
+  const routePolylineRef = useRef(null);
+
+  // Initialize Google Maps with pickup and destination markers
+  useEffect(() => {
+    const initMap = async () => {
+      if (!mapRef.current || typeof google === 'undefined') return;
+
+      console.log('🗺️ Initializing Google Maps for driver search...');
+
+      // Try to get current location first, fallback to Prayagraj
+      let mapCenter = { lat: 25.4358, lng: 81.8463 }; // Prayagraj as fallback
+      let currentLocationDetected = false;
+      
+      try {
+        console.log('📍 Detecting current location...');
+        const currentLocation = await geocodingService.getCurrentLocation();
+        if (currentLocation) {
+          mapCenter = { lat: currentLocation.lat, lng: currentLocation.lng };
+          currentLocationDetected = true;
+          console.log('✅ Current location detected:', currentLocation.formattedAddress);
+        }
+      } catch (error) {
+        console.log('⚠️ Could not detect current location, using fallback');
+      }
+
+      // Use provided coordinates or detected current location
+      const pickup = pickupCoords || mapCenter;
+      const drop = dropCoords || mapCenter;
+
+      // Initialize map
+      const map = new (window as any).google.maps.Map(mapRef.current, {
+        center: pickup,
+        zoom: 13,
+        disableDefaultUI: false,
+        zoomControl: true,
+        mapTypeControl: false,
+        scaleControl: true,
+        streetViewControl: false,
+        rotateControl: false,
+        fullscreenControl: true,
+        styles: [
+          {
+            featureType: 'poi',
+            elementType: 'labels',
+            stylers: [{ visibility: 'off' }],
+          },
+        ],
+      });
+
+      googleMapRef.current = map;
+
+      // Add pickup marker
+      const pickupMarker = new (window as any).google.maps.Marker({
+        position: pickup,
+        map: map,
+        title: 'Pickup Location',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#CF923D',
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3,
+        },
+      });
+
+      pickupMarkerRef.current = pickupMarker;
+
+      // Add destination marker
+      const dropMarker = new (window as any).google.maps.Marker({
+        position: drop,
+        map: map,
+        title: 'Destination',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#000000',
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3,
+        },
+      });
+
+      dropMarkerRef.current = dropMarker;
+
+      // Draw route between pickup and destination
+      try {
+        const directionsService = new (window as any).google.maps.DirectionsService();
+        const directionsRenderer = new (window as any).google.maps.DirectionsRenderer({
+          suppressMarkers: true,
+          polylineOptions: {
+            strokeColor: '#CF923D',
+            strokeWeight: 4,
+            strokeOpacity: 0.8,
+          },
+        });
+
+        directionsRenderer.setMap(map);
+        routePolylineRef.current = directionsRenderer;
+
+        directionsService.route(
+          {
+            origin: pickup,
+            destination: drop,
+            travelMode: (window as any).google.maps.TravelMode.DRIVING,
+          },
+          (result, status) => {
+            if (status === 'OK') {
+              directionsRenderer.setDirections(result);
+              console.log('✅ Route drawn successfully');
+            } else {
+              console.warn('⚠️ Directions request failed:', status);
+              // Fallback: draw a simple line
+              const polyline = new (window as any).google.maps.Polyline({
+                path: [pickup, drop],
+                geodesic: true,
+                strokeColor: '#CF923D',
+                strokeOpacity: 1.0,
+                strokeWeight: 4,
+              });
+              polyline.setMap(map);
+              routePolylineRef.current = polyline;
+            }
+          }
+        );
+      } catch (error) {
+        console.warn('⚠️ Directions API not available:', error);
+        // Fallback: draw a simple line
+        const polyline = new (window as any).google.maps.Polyline({
+          path: [pickup, drop],
+          geodesic: true,
+          strokeColor: '#CF923D',
+          strokeOpacity: 1.0,
+          strokeWeight: 4,
+        });
+        polyline.setMap(map);
+        routePolylineRef.current = polyline;
+      }
+
+      // Fit map to show both markers with padding
+      const bounds = new (window as any).google.maps.LatLngBounds();
+      bounds.extend(pickup);
+      bounds.extend(drop);
+      
+      const padding = 50;
+      map.fitBounds(bounds, { 
+        top: padding, 
+        right: padding, 
+        bottom: padding, 
+        left: padding 
+      });
+
+      console.log('✅ Google Maps initialized for driver search');
+    };
+
+    // Wait for Google Maps to load
+    if (typeof google !== 'undefined') {
+      initMap();
+    } else {
+      const handleGoogleMapsLoaded = () => {
+        console.log('🗺️ Google Maps loaded event received');
+        initMap();
+      };
+
+      window.addEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+
+      return () => {
+        window.removeEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+      };
+    }
+  }, [pickupCoords, dropCoords]);
 
   useEffect(() => {
     // Animate loading dots
@@ -143,6 +322,13 @@ export default function BookingLoaderScreen({
 
     // Create real ride request
     const createRideTimer = setTimeout(async () => {
+      if (isCreatingRide) {
+        console.log('🚫 Ride creation already in progress, skipping...');
+        return;
+      }
+      
+      setIsCreatingRide(true);
+      
       try {
         console.log('🚖 Creating ride request...');
         console.log('📍 Pickup:', pickupLocation);
@@ -154,12 +340,12 @@ export default function BookingLoaderScreen({
 
         // Create the ride
         const rideRequest = {
-          pickupLat: 28.6139, // Default coordinates for testing
-          pickupLng: 77.2090,
-          dropLat: 28.5355,
-          dropLng: 77.3910,
-          pickupAddress: pickupLocation || 'Connaught Place, New Delhi',
-          dropAddress: dropLocation || 'India Gate, New Delhi',
+          pickupLat: pickupCoords?.lat || 25.4358, // Use provided coordinates or Prayagraj fallback
+          pickupLng: pickupCoords?.lng || 81.8463,
+          dropLat: dropCoords?.lat || 25.4358,
+          dropLng: dropCoords?.lng || 81.8463,
+          pickupAddress: pickupLocation || 'Current Location',
+          dropAddress: dropLocation || 'Current Location',
           paymentMethod: 'CASH',
           vehicleType: 'SEDAN'
         };
@@ -169,8 +355,12 @@ export default function BookingLoaderScreen({
         if (response.success && response.data) {
           console.log('✅ Ride created successfully:', response.data.id);
           
-          // Join ride room for updates
-          realTimeService.joinRideRoom(response.data.id);
+          // Join ride room for updates (async)
+          realTimeService.joinRideRoom(response.data.id).then(() => {
+            console.log('✅ Successfully joined ride room for updates');
+          }).catch((error) => {
+            console.error('❌ Failed to join ride room:', error);
+          });
           
           // Listen for driver acceptance
           realTimeService.onRideAccepted((data) => {
@@ -204,6 +394,8 @@ export default function BookingLoaderScreen({
           description: "Please try again",
           duration: 3000,
         });
+      } finally {
+        setIsCreatingRide(false);
       }
     }, 2000); // Create ride after 2 seconds
 
@@ -222,20 +414,13 @@ export default function BookingLoaderScreen({
 
   return (
     <div className="min-h-screen w-full bg-white relative overflow-hidden isolate">
-      {/* Map Background Layer - Locked to background */}
+      {/* Google Maps Background Layer */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-gray-100">
-          <div
-            className="absolute inset-0 bg-center bg-cover bg-no-repeat"
-            style={{
-              backgroundImage: `url('${imgUber0213C7Cd81E2}')`,
-            }}
-          />
-          <div
-            className="absolute inset-0 bg-center bg-cover bg-no-repeat opacity-80"
-            style={{ backgroundImage: `url('${imgImage}')` }}
-          />
-        </div>
+        <div 
+          ref={mapRef}
+          className="w-full h-full"
+          style={{ minHeight: '100vh' }}
+        />
       </div>
 
       {/* UI Layer Container */}

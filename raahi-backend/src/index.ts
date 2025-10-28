@@ -47,11 +47,15 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 5000;
 
-// Rate limiting
+// Rate limiting - Very lenient for development
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '5000'), // Very high limit for development
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again later.',
+    error: 'RATE_LIMIT_EXCEEDED'
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -102,6 +106,7 @@ app.use('/api/realtime', realTimeRoutes);
 // WebSocket connection handling
 io.on('connection', (socket) => {
   logger.info(`Client connected: ${socket.id}`);
+  console.log(`🔌 WebSocket client connected: ${socket.id}`);
   
   // Handle ride room joining
   socket.on('join-ride', (rideId) => {

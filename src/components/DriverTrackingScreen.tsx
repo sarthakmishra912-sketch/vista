@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { rideService } from '../services/rideService';
+import { geocodingService } from '../services/geocodingService';
 import svgPaths from "../imports/svg-2aj2wlduut";
 import imgFrame from "figma:asset/516e77515feb8b0da14eb9d08100d04603ad8beb.png";
 import imgUber0213C7Cd81E2 from "figma:asset/0c4e8a4be75e7d129875490702ea90e0ae00c34d.png";
@@ -714,6 +715,14 @@ export default function DriverTrackingScreen({
   const [currentTripState, setCurrentTripState] = useState<'en_route_to_pickup' | 'arrived_at_pickup' | 'passenger_picked_up' | 'trip_started'>(tripState);
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [otpInput, setOtpInput] = useState('');
+  
+  // Google Maps references
+  const mapRef = useRef(null);
+  const googleMapRef = useRef(null);
+  const driverMarkerRef = useRef(null);
+  const pickupMarkerRef = useRef(null);
+  const dropMarkerRef = useRef(null);
+  const routePolylineRef = useRef(null);
 
   // Generate OTP for ride verification
   const generateOTP = () => {
@@ -876,25 +885,204 @@ export default function DriverTrackingScreen({
     };
   }, []);
 
+  // Initialize Google Maps with driver, pickup, and destination markers
+  useEffect(() => {
+    const initMap = async () => {
+      if (!mapRef.current || typeof google === 'undefined') return;
+
+      console.log('🗺️ Initializing Google Maps for driver tracking...');
+
+      // Try to get current location first, fallback to Prayagraj
+      let mapCenter = { lat: 25.4358, lng: 81.8463 }; // Prayagraj as fallback
+      let currentLocationDetected = false;
+      
+      try {
+        console.log('📍 Detecting current location...');
+        const currentLocation = await geocodingService.getCurrentLocation();
+        if (currentLocation) {
+          mapCenter = { lat: currentLocation.lat, lng: currentLocation.lng };
+          currentLocationDetected = true;
+          console.log('✅ Current location detected:', currentLocation.formattedAddress);
+        }
+      } catch (error) {
+        console.log('⚠️ Could not detect current location, using fallback');
+      }
+
+      // Default coordinates (will be updated with real data)
+      const driverLocation = mapCenter; // Use detected location or fallback
+      const pickupLocation = mapCenter; // Same as driver for now
+      const dropLocation = mapCenter; // Will be updated with real destination
+
+      // Initialize map
+      const map = new (window as any).google.maps.Map(mapRef.current, {
+        center: driverLocation,
+        zoom: 13,
+        disableDefaultUI: false,
+        zoomControl: true,
+        mapTypeControl: false,
+        scaleControl: true,
+        streetViewControl: false,
+        rotateControl: false,
+        fullscreenControl: true,
+        styles: [
+          {
+            featureType: 'poi',
+            elementType: 'labels',
+            stylers: [{ visibility: 'off' }],
+          },
+        ],
+      });
+
+      googleMapRef.current = map;
+
+      // Add driver marker
+      const driverMarker = new (window as any).google.maps.Marker({
+        position: driverLocation,
+        map: map,
+        title: 'Driver Location',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#CF923D',
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3,
+        },
+      });
+
+      driverMarkerRef.current = driverMarker;
+
+      // Add pickup marker
+      const pickupMarker = new (window as any).google.maps.Marker({
+        position: pickupLocation,
+        map: map,
+        title: 'Pickup Location',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#CF923D',
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3,
+        },
+      });
+
+      pickupMarkerRef.current = pickupMarker;
+
+      // Add destination marker
+      const dropMarker = new (window as any).google.maps.Marker({
+        position: dropLocation,
+        map: map,
+        title: 'Destination',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#000000',
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3,
+        },
+      });
+
+      dropMarkerRef.current = dropMarker;
+
+      // Draw route between pickup and destination
+      try {
+        const directionsService = new (window as any).google.maps.DirectionsService();
+        const directionsRenderer = new (window as any).google.maps.DirectionsRenderer({
+          suppressMarkers: true,
+          polylineOptions: {
+            strokeColor: '#CF923D',
+            strokeWeight: 4,
+            strokeOpacity: 0.8,
+          },
+        });
+
+        directionsRenderer.setMap(map);
+        routePolylineRef.current = directionsRenderer;
+
+        directionsService.route(
+          {
+            origin: pickupLocation,
+            destination: dropLocation,
+            travelMode: (window as any).google.maps.TravelMode.DRIVING,
+          },
+          (result, status) => {
+            if (status === 'OK') {
+              directionsRenderer.setDirections(result);
+              console.log('✅ Route drawn successfully');
+            } else {
+              console.warn('⚠️ Directions request failed:', status);
+              // Fallback: draw a simple line
+              const polyline = new (window as any).google.maps.Polyline({
+                path: [pickupLocation, dropLocation],
+                geodesic: true,
+                strokeColor: '#CF923D',
+                strokeOpacity: 1.0,
+                strokeWeight: 4,
+              });
+              polyline.setMap(map);
+              routePolylineRef.current = polyline;
+            }
+          }
+        );
+      } catch (error) {
+        console.warn('⚠️ Directions API not available:', error);
+        // Fallback: draw a simple line
+        const polyline = new (window as any).google.maps.Polyline({
+          path: [pickupLocation, dropLocation],
+          geodesic: true,
+          strokeColor: '#CF923D',
+          strokeOpacity: 1.0,
+          strokeWeight: 4,
+        });
+        polyline.setMap(map);
+        routePolylineRef.current = polyline;
+      }
+
+      // Fit map to show all markers with padding
+      const bounds = new (window as any).google.maps.LatLngBounds();
+      bounds.extend(driverLocation);
+      bounds.extend(pickupLocation);
+      bounds.extend(dropLocation);
+      
+      const padding = 50;
+      map.fitBounds(bounds, { 
+        top: padding, 
+        right: padding, 
+        bottom: padding, 
+        left: padding 
+      });
+
+      console.log('✅ Google Maps initialized for driver tracking');
+    };
+
+    // Wait for Google Maps to load
+    if (typeof google !== 'undefined') {
+      initMap();
+    } else {
+      const handleGoogleMapsLoaded = () => {
+        console.log('🗺️ Google Maps loaded event received');
+        initMap();
+      };
+
+      window.addEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+
+      return () => {
+        window.removeEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+      };
+    }
+  }, []);
+
   return (
     <div className="min-h-screen w-full bg-white relative overflow-hidden isolate">
-      {/* Map Background Layer - Locked to background */}
+      {/* Google Maps Background Layer */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-gray-100">
-          {/* Background map images */}
-          <div
-            className="absolute inset-0 bg-center bg-cover bg-no-repeat"
-            style={{ backgroundImage: `url('${imgUber0213C7Cd81E2}')` }}
-          />
-          <div
-            className="absolute inset-0 bg-center bg-cover bg-no-repeat opacity-80"
-            style={{ backgroundImage: `url('${imgUber0214Ed5498Cc}')` }}
-          />
-          <div
-            className="absolute inset-0 bg-center bg-cover bg-no-repeat opacity-60"
-            style={{ backgroundImage: `url('${imgImage}')` }}
-          />
-        </div>
+        <div 
+          ref={mapRef}
+          className="w-full h-full"
+          style={{ minHeight: '100vh' }}
+        />
       </div>
 
       {/* Map Elements Layer */}

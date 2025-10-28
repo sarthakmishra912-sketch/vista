@@ -15,68 +15,144 @@ import imgImage from "figma:asset/176ba6c12ab7f022834992fb78872f1e9feeb9a4.png";
 
 
 
-// Dummy addresses for Delhi NCR
-const DUMMY_ADDRESSES = [
+// Enhanced addresses for Delhi NCR (works without Google Places API billing)
+const ENHANCED_DUMMY_ADDRESSES = [
+  // Delhi locations
   "Connaught Place, New Delhi",
-  "DLF Cyber City, Gurgaon",
-  "Sector 18, Noida",
+  "India Gate, New Delhi", 
+  "Red Fort, New Delhi",
+  "Chandni Chowk, New Delhi",
   "Karol Bagh, New Delhi",
+  "Lajpat Nagar, New Delhi",
   "Rajouri Garden, New Delhi",
-  "India Gate, New Delhi",
-  "Red Fort, Delhi",
-  "Lotus Temple, New Delhi",
-  "Select City Walk Mall, Saket",
-  "DLF Mall of India, Noida",
-  "Ambience Mall, Gurgaon",
+  "Paharganj, New Delhi",
   "Khan Market, New Delhi",
-  "Chandni Chowk, Old Delhi",
-  "Nehru Place, New Delhi",
-  "Greater Kailash, New Delhi",
+  "South Extension, New Delhi",
+  "Hauz Khas, New Delhi",
+  "Malviya Nagar, New Delhi",
+  "Saket, New Delhi",
   "Vasant Kunj, New Delhi",
   "Dwarka, New Delhi",
   "Rohini, New Delhi",
-  "Lajpat Nagar, New Delhi",
   "Janakpuri, New Delhi",
   "Pitampura, New Delhi",
   "Sarita Vihar, New Delhi",
   "Okhla, New Delhi",
   "Mayur Vihar, New Delhi",
   "Shalimar Bagh, New Delhi",
-  "Sector 15, Gurgaon",
+  "Nehru Place, New Delhi",
+  "Greater Kailash, New Delhi",
+  "Lotus Temple, New Delhi",
+  
+  // Gurgaon locations
+  "DLF Cyber City, Gurgaon",
+  "DLF Phase 1, Gurgaon",
+  "DLF Phase 2, Gurgaon", 
+  "DLF Phase 3, Gurgaon",
   "Sector 29, Gurgaon",
+  "Sector 14, Gurgaon",
+  "MG Road, Gurgaon",
+  "Cyber Hub, Gurgaon",
+  "Sector 17, Gurgaon",
+  "Sector 15, Gurgaon",
+  "Sector 21, Gurgaon",
+  "Sector 25, Gurgaon",
   "Sector 44, Gurgaon",
   "Golf Course Road, Gurgaon",
-  "MG Road, Gurgaon",
+  "Ambience Mall, Gurgaon",
+  
+  // Noida locations
+  "Sector 18, Noida",
   "Sector 62, Noida",
   "Sector 137, Noida",
   "Greater Noida West",
   "Knowledge Park, Greater Noida",
-  "Pari Chowk, Greater Noida"
+  "Pari Chowk, Greater Noida",
+  "Sector 15, Noida",
+  "Sector 16, Noida",
+  "Sector 63, Noida",
+  "Sector 125, Noida",
+  "DLF Mall of India, Noida",
+  
+  // Airports
+  "Indira Gandhi International Airport, New Delhi",
+  "Delhi Airport Terminal 1",
+  "Delhi Airport Terminal 2", 
+  "Delhi Airport Terminal 3",
+  
+  // Railway Stations
+  "New Delhi Railway Station",
+  "Old Delhi Railway Station",
+  "Nizamuddin Railway Station",
+  "Anand Vihar Railway Station",
+  
+  // Metro Stations
+  "Rajiv Chowk Metro Station",
+  "Central Secretariat Metro Station",
+  "Kashmere Gate Metro Station",
+  "Dilshad Garden Metro Station",
+  "Vaishali Metro Station",
+  "Botanical Garden Metro Station",
+  
+  // Malls
+  "Select City Walk Mall, Saket",
+  "DLF Mall of India, Noida",
+  "Ambience Mall, Gurgaon"
 ];
+
+// Known address coordinates for better accuracy (works without Geocoding API)
+const KNOWN_ADDRESSES = {
+  "Connaught Place, New Delhi": { lat: 28.6315, lng: 77.2167 },
+  "India Gate, New Delhi": { lat: 28.6129, lng: 77.2295 },
+  "Red Fort, New Delhi": { lat: 28.6562, lng: 77.2410 },
+  "Chandni Chowk, New Delhi": { lat: 28.6517, lng: 77.2312 },
+  "Karol Bagh, New Delhi": { lat: 28.6517, lng: 77.1909 },
+  "Lajpat Nagar, New Delhi": { lat: 28.5679, lng: 77.2431 },
+  "Rajouri Garden, New Delhi": { lat: 28.6408, lng: 77.1206 },
+  "DLF Cyber City, Gurgaon": { lat: 28.5022, lng: 77.0958 },
+  "DLF Phase 1, Gurgaon": { lat: 28.5022, lng: 77.0958 },
+  "DLF Phase 2, Gurgaon": { lat: 28.5022, lng: 77.0958 },
+  "DLF Phase 3, Gurgaon": { lat: 28.5022, lng: 77.0958 },
+  "Sector 18, Noida": { lat: 28.6139, lng: 77.2090 },
+  "Sector 62, Noida": { lat: 28.6139, lng: 77.2090 },
+  "Indira Gandhi International Airport, New Delhi": { lat: 28.5562, lng: 77.1000 },
+  "New Delhi Railway Station": { lat: 28.6428, lng: 77.2207 },
+  "Rajiv Chowk Metro Station": { lat: 28.6315, lng: 77.2167 }
+};
 
 function LocationDropdown({ addresses, onSelect, isVisible, searchTerm = "" }) {
   if (!isVisible) return null;
   
-  const filteredAddresses = addresses.filter(address =>
-    address.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // For Google Places suggestions, we don't need to filter since they're already filtered
+  const displayAddresses = addresses.slice(0, 8);
   
   return (
     <div className="absolute top-full left-0 right-0 bg-white border border-[#e0e0e0] rounded-lg shadow-lg max-h-[200px] overflow-y-auto scrollbar-hide z-50 mt-1">
-      {filteredAddresses.length > 0 ? (
-        filteredAddresses.slice(0, 8).map((address, index) => (
+      {displayAddresses.length > 0 ? (
+        displayAddresses.map((address, index) => (
           <button
             key={index}
             onClick={() => onSelect(address)}
-            className="w-full text-left px-4 py-3 hover:bg-[#f8f8f8] transition-colors border-b border-[#f0f0f0] last:border-b-0"
+            className="w-full text-left px-4 py-3 hover:bg-[#f8f8f8] transition-colors border-b border-[#f0f0f0] last:border-b-0 flex items-center gap-3"
           >
-            <div className="font-['Poppins:Regular',_sans-serif] text-[#333333] text-[16px]">
+            <div className="w-5 h-5 text-[#CF923D] flex-shrink-0">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div className="font-['Poppins:Regular',_sans-serif] text-[#333333] text-[16px] flex-1">
               {address}
             </div>
           </button>
         ))
       ) : (
-        <div className="px-4 py-3 text-[#999999] font-['Poppins:Regular',_sans-serif] text-[16px]">
+        <div className="px-4 py-3 text-[#999999] font-['Poppins:Regular',_sans-serif] text-[16px] flex items-center gap-3">
+          <div className="w-5 h-5 text-[#999999] flex-shrink-0">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
           No addresses found
         </div>
       )}
@@ -188,19 +264,32 @@ function LocationInputs({
               value={pickupLocation}
               onChange={(e) => onPickupChange(e.target.value)}
               onFocus={handlePickupFocus}
-              placeholder="U Block, DLF Phase 3, Sector 24, Gur..."
-              className="font-['Poppins:Regular',_sans-serif] text-[#656565] text-[18px] bg-transparent border-none outline-none w-full placeholder:text-[#656565]"
+              placeholder="Enter pickup location or use current location"
+              className="font-['Poppins:Regular',_sans-serif] text-[#656565] text-[18px] bg-transparent border-none outline-none w-full placeholder:text-[#656565] pr-12"
             />
-            {isLocationChanging && activeInput === 'pickup' && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-[#CF923D] border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            )}
+            
+            {/* Current Location Button */}
+            <button
+              onClick={() => onGetCurrentLocation && onGetCurrentLocation('pickup')}
+              disabled={isGettingCurrentLocation}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-[#CF923D] rounded-full flex items-center justify-center hover:bg-[#B8822A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Use current location"
+            >
+              {isGettingCurrentLocation ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+            </button>
+            
             {isLocationChanging && activeInput === 'pickup' && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.5s_ease-in-out_infinite] rounded"></div>
             )}
             <LocationDropdown
-              addresses={suggestedLocations.length > 0 ? suggestedLocations : DUMMY_ADDRESSES}
+              addresses={suggestedLocations.length > 0 ? suggestedLocations : ENHANCED_DUMMY_ADDRESSES}
               onSelect={handlePickupSelect}
               isVisible={showPickupDropdown && showSuggestions}
               searchTerm={pickupLocation}
@@ -224,7 +313,7 @@ function LocationInputs({
               value={dropLocation}
               onChange={(e) => onDropChange(e.target.value)}
               onFocus={handleDropFocus}
-              placeholder="Home"
+              placeholder="Enter destination"
               className="font-['Poppins:Regular',_sans-serif] text-[#656565] text-[18px] bg-transparent border-none outline-none w-full placeholder:text-[#656565]"
             />
             {isLocationChanging && activeInput === 'drop' && (
@@ -236,7 +325,7 @@ function LocationInputs({
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.5s_ease-in-out_infinite] rounded"></div>
             )}
             <LocationDropdown
-              addresses={suggestedLocations.length > 0 ? suggestedLocations : DUMMY_ADDRESSES}
+              addresses={suggestedLocations.length > 0 ? suggestedLocations : ENHANCED_DUMMY_ADDRESSES}
               onSelect={handleDropSelect}
               isVisible={showDropDropdown && showSuggestions}
               searchTerm={dropLocation}
@@ -410,7 +499,7 @@ function DriverCountSelector({ count, onIncrease, onDecrease, onToggleExtra, nee
   );
 }
 
-function PaymentSlider({ onPay }) {
+function PaymentSlider({ onPay, isDisabled = false, customText = "Slide to book ride", isLoading = false, selectedVehicle = null }) {
   const [isSliding, setIsSliding] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState(0);
@@ -429,11 +518,13 @@ function PaymentSlider({ onPay }) {
   }, []);
 
   const handleMouseDown = (e) => {
+    if (isDisabled) return;
     setIsDragging(true);
     e.preventDefault();
   };
 
   const handleTouchStart = (e) => {
+    if (isDisabled) return;
     setIsDragging(true);
     e.preventDefault();
   };
@@ -505,23 +596,33 @@ function PaymentSlider({ onPay }) {
   }, [isDragging, dragPosition, sliderWidth]);
   
   return (
-    <div className="absolute bottom-0 left-0 right-0 bg-[#ffffff] h-[160px] shadow-[0px_7px_35.3px_0px_rgba(0,0,0,0.15)]">
+    <div className={`absolute bottom-0 left-0 right-0 h-[160px] shadow-[0px_7px_35.3px_0px_rgba(0,0,0,0.15)] ${
+      isDisabled ? 'bg-gray-100' : 'bg-[#ffffff]'
+    }`}>
       <div className="relative h-full flex items-center justify-center px-8">
         <div 
           ref={sliderRef}
-          className="bg-black rounded-full h-[80px] w-full relative overflow-hidden select-none"
+          className={`rounded-full h-[80px] w-full relative overflow-hidden select-none ${
+            isDisabled ? 'bg-gray-300' : 'bg-black'
+          }`}
         >
           {/* Background text */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-20">
-            <span className="font-['Poppins:Medium',_sans-serif] text-[#ffffff] text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-[32px] text-center">
-              {isSliding ? 'Booking...' : 'Slide to book ride'}
-            </span>
+                    <span className={`font-['Poppins:Medium',_sans-serif] text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-[32px] text-center ${
+                      isDisabled ? 'text-gray-500' : 'text-[#ffffff]'
+                    }`}>
+                      {isSliding ? 'Booking...' : isLoading ? 'Loading vehicles...' : 'Slide to book ride'}
+                    </span>
           </div>
           
-          {/* Draggable circle */}
+          {/* Draggable circle - Always show but disabled when needed */}
           <div 
-            className={`absolute top-[10px] bg-white rounded-full shadow-lg cursor-grab active:cursor-grabbing transition-all duration-200 ${
-              isDragging ? 'scale-110' : 'scale-100'
+            className={`absolute top-[10px] rounded-full shadow-lg transition-all duration-200 ${
+              isDisabled 
+                ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                : isDragging 
+                ? 'cursor-grabbing scale-110 bg-white' 
+                : 'cursor-grab scale-100 bg-white'
             } ${isSliding ? 'cursor-not-allowed' : ''}`}
             style={{ 
               left: `${10 + dragPosition}px`,
@@ -533,10 +634,10 @@ function PaymentSlider({ onPay }) {
               justifyContent: 'center',
               position: 'relative'
             }}
-            onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
+            onMouseDown={isDisabled ? undefined : handleMouseDown}
+            onTouchStart={isDisabled ? undefined : handleTouchStart}
           >
-            {/* Double Arrow SVG */}
+            {/* Double Arrow SVG - Always show */}
             <svg 
               className="w-14 h-14" 
               fill="none" 
@@ -548,8 +649,8 @@ function PaymentSlider({ onPay }) {
                 transform: 'translate(-50%, -50%)'
               }}
             >
-              <path d={arrowSvgPaths.pae95500} fill="black" />
-              <path d={arrowSvgPaths.p1cf54280} fill="black" />
+              <path d={arrowSvgPaths.pae95500} fill={isDisabled ? '#9CA3AF' : 'black'} />
+              <path d={arrowSvgPaths.p1cf54280} fill={isDisabled ? '#9CA3AF' : 'black'} />
             </svg>
           </div>
           
@@ -562,6 +663,410 @@ function PaymentSlider({ onPay }) {
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+// Vehicle Selection Bottom Sheet Component
+function VehicleBottomSheet({
+  vehicles,
+  isLoadingPricing,
+  selectedVehicle,
+  onSelectVehicle,
+  driverCount,
+  onIncreaseDrivers,
+  onDecreaseDrivers,
+  needExtraDrivers,
+  onToggleExtraDrivers,
+  onClose
+}) {
+  return (
+    <div className="fixed inset-0 z-50">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black bg-opacity-50"
+        onClick={onClose}
+      />
+      
+      {/* Bottom Sheet */}
+      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl max-h-[80vh] overflow-hidden">
+        {/* Handle */}
+        <div className="flex justify-center pt-4 pb-2">
+          <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+        </div>
+        
+        {/* Header */}
+        <div className="px-6 pb-4 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-800">Choose Your Ride</h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-sm text-gray-600 mt-1">
+            🚗 Welcome! Select your preferred vehicle and we'll get you there safely.
+          </p>
+        </div>
+        
+        {/* Vehicle Options */}
+        <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+          {isLoadingPricing ? (
+            // Show shimmer effect while loading
+            <>
+              <ShimmerVehicleCard />
+              <ShimmerVehicleCard />
+            </>
+          ) : (
+            vehicles.map((vehicle, index) => (
+              <div key={index}>
+                <VehicleOption
+                  {...vehicle}
+                  isSelected={selectedVehicle === index}
+                  onSelect={() => onSelectVehicle(index)}
+                />
+                
+                {/* Driver Count Selector - Show after first vehicle (Bike Rescue) */}
+                {index === 0 && (
+                  <div className="mt-6">
+                    <DriverCountSelector
+                      count={driverCount}
+                      onIncrease={onIncreaseDrivers}
+                      onDecrease={onDecreaseDrivers}
+                      onToggleExtra={onToggleExtraDrivers}
+                      needExtraDrivers={needExtraDrivers}
+                      isEnabled={selectedVehicle === 0} // Only enabled when Bike Rescue is selected
+                    />
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Rescue Service Screen Component
+function RescueScreen({
+  pickupLocation,
+  onBack,
+  onRescueBooked
+}) {
+  const [driverCount, setDriverCount] = useState(1);
+  const [dropLocation, setDropLocation] = useState('');
+  const [dropCoords, setDropCoords] = useState(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestedLocations, setSuggestedLocations] = useState([]);
+  const [isLocationChanging, setIsLocationChanging] = useState(false);
+  const [activeInput, setActiveInput] = useState(null);
+  
+  // Rescue vehicle state
+  const [rescueVehicles, setRescueVehicles] = useState([]);
+  const [isLoadingRescueVehicles, setIsLoadingRescueVehicles] = useState(false);
+  const [selectedRescueVehicle, setSelectedRescueVehicle] = useState(0);
+  
+  // Google Maps references
+  const mapRef = useRef(null);
+  const googleMapRef = useRef(null);
+  const pickupMarkerRef = useRef(null);
+  const dropMarkerRef = useRef(null);
+  const routePolylineRef = useRef(null);
+
+  // Initialize Google Maps for Rescue screen
+  useEffect(() => {
+    const initMap = async () => {
+      if (!mapRef.current || typeof google === 'undefined') return;
+
+      console.log('🗺️ Initializing Google Maps for Rescue...');
+
+      // Use Prayagraj as default center
+      const mapCenter = { lat: 25.4358, lng: 81.8463 };
+
+      // Initialize map
+      const map = new (window as any).google.maps.Map(mapRef.current, {
+        center: mapCenter,
+        zoom: 13,
+        disableDefaultUI: false,
+        zoomControl: true,
+        mapTypeControl: false,
+        scaleControl: true,
+        streetViewControl: false,
+        rotateControl: false,
+        fullscreenControl: true,
+        styles: [
+          {
+            featureType: 'poi',
+            elementType: 'labels',
+            stylers: [{ visibility: 'off' }],
+          },
+        ],
+      });
+
+      googleMapRef.current = map;
+
+      // Add pickup marker (current location)
+      const pickupMarker = new (window as any).google.maps.Marker({
+        position: mapCenter,
+        map: map,
+        title: 'Current Location',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#CF923D',
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3,
+        },
+      });
+
+      pickupMarkerRef.current = pickupMarker;
+
+      console.log('✅ Google Maps initialized for Rescue');
+    };
+
+    // Wait for Google Maps to load
+    if (typeof google !== 'undefined') {
+      initMap();
+    } else {
+      const handleGoogleMapsLoaded = () => {
+        console.log('🗺️ Google Maps loaded event received');
+        initMap();
+      };
+
+      window.addEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+
+      return () => {
+        window.removeEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+      };
+    }
+  }, []);
+
+  // Handle location change
+  const handleLocationChange = (value) => {
+    setDropLocation(value);
+    setActiveInput('drop');
+    setIsLocationChanging(true);
+    
+    // Simple location search
+    const filtered = ENHANCED_DUMMY_ADDRESSES.filter(addr =>
+      addr.toLowerCase().includes(value.toLowerCase())
+    );
+    setSuggestedLocations(filtered);
+    setShowSuggestions(true);
+  };
+
+  // Handle location selection
+  const handleLocationSelect = (address) => {
+    setDropLocation(address);
+    setShowSuggestions(false);
+    setActiveInput(null);
+    
+    // Set coordinates for the selected address
+    const coords = KNOWN_ADDRESSES[address] || { lat: 25.4358, lng: 81.8463 };
+    setDropCoords(coords);
+    
+    // Load rescue vehicles after destination is selected
+    loadRescueVehicles();
+  };
+
+  // Load rescue vehicles
+  const loadRescueVehicles = async () => {
+    setIsLoadingRescueVehicles(true);
+    
+    // Simulate API call delay
+    setTimeout(() => {
+      const vehicles = [
+        {
+          title: 'Two-Wheeler Rescue',
+          subtitle: 'Emergency vehicle assistance',
+          icon: '🏍️',
+          price: '₹150',
+          time: '5-10 min',
+          description: 'Professional rescue service with trained drivers',
+          available: true
+        },
+        {
+          title: 'Bike Rescue Plus',
+          subtitle: 'Premium emergency assistance',
+          icon: '🏍️',
+          price: '₹200',
+          time: '3-7 min',
+          description: 'Fast response with advanced equipment',
+          available: true
+        }
+      ];
+      
+      setRescueVehicles(vehicles);
+      setIsLoadingRescueVehicles(false);
+      console.log('🚨 Rescue vehicles loaded:', vehicles);
+    }, 1000);
+  };
+
+  // Handle rescue booking
+  const handleRescueBooking = () => {
+    if (!dropLocation.trim()) {
+      toast.error('Please enter destination');
+      return;
+    }
+
+    if (rescueVehicles.length === 0) {
+      toast.error('Please wait for vehicles to load');
+      return;
+    }
+
+    const selectedVehicleData = rescueVehicles[selectedRescueVehicle];
+    
+    const bookingData = {
+      pickupLocation,
+      dropLocation,
+      pickupCoords: { lat: 25.4358, lng: 81.8463 }, // Current location
+      dropCoords: dropCoords || { lat: 25.4358, lng: 81.8463 },
+      selectedVehicle: selectedRescueVehicle,
+      selectedVehicleData,
+      driverCount,
+      vehicleType: 'BIKE',
+      serviceType: 'RESCUE'
+    };
+
+    if (onRescueBooked) {
+      onRescueBooked(bookingData);
+    }
+  };
+
+  return (
+    <div className="relative size-full min-h-screen bg-white">
+      {/* Interactive Google Maps */}
+      <div className="absolute inset-0">
+        <div 
+          ref={mapRef}
+          className="w-full h-[70%]"
+          style={{ minHeight: '400px' }}
+        />
+      </div>
+
+      {/* Location Inputs */}
+      <LocationInputs
+        pickupLocation={pickupLocation}
+        dropLocation={dropLocation}
+        onPickupChange={() => {}} // Disabled for rescue
+        onDropChange={(value) => handleLocationChange(value)}
+        onBack={onBack}
+        suggestedLocations={suggestedLocations}
+        showSuggestions={showSuggestions}
+        activeInput={activeInput}
+        onLocationSelect={(type, address) => handleLocationSelect(address)}
+        isLocationChanging={isLocationChanging}
+        onGetCurrentLocation={() => {}} // Disabled for rescue
+        isGettingCurrentLocation={false}
+      />
+
+      {/* Main Content */}
+      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0px_-7px_35.3px_0px_rgba(0,0,0,0.15)] max-h-[60vh] overflow-y-auto">
+        <div className="px-6 py-6">
+          {/* Header */}
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Emergency Rescue</h2>
+            <p className="text-gray-600">
+              Emergency vehicle assistance - Available 24/7
+            </p>
+          </div>
+
+          {/* Driver Count Selection */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Number of Drivers</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => setDriverCount(Math.max(1, driverCount - 1))}
+                  className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+                >
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                  </svg>
+                </button>
+                <span className="text-3xl font-bold text-gray-800">{driverCount}</span>
+                <button
+                  onClick={() => setDriverCount(Math.min(5, driverCount + 1))}
+                  className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+                >
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-sm text-gray-600">{driverCount} driver{driverCount > 1 ? 's' : ''} needed</p>
+            </div>
+          </div>
+
+          {/* Vehicle Options */}
+          <div className="space-y-4 pb-8">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Rescue Vehicle</h3>
+              
+              {!dropLocation || dropLocation.trim() === '' ? (
+                <div className="p-4 bg-gray-50 rounded-xl">
+                  <p className="text-sm text-gray-600 text-center">
+                    💡 Enter destination to see available rescue vehicles
+                  </p>
+                </div>
+              ) : isLoadingRescueVehicles ? (
+                <div className="space-y-3">
+                  <div className="animate-pulse">
+                    <div className="h-16 bg-gray-200 rounded-xl"></div>
+                  </div>
+                  <div className="animate-pulse">
+                    <div className="h-16 bg-gray-200 rounded-xl"></div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {rescueVehicles.map((vehicle, index) => (
+                    <div 
+                      key={index}
+                      className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
+                        selectedRescueVehicle === index 
+                          ? 'bg-orange-50 border-orange-200' 
+                          : 'bg-gray-50 border-gray-200 hover:bg-orange-50 hover:border-orange-200'
+                      }`}
+                      onClick={() => setSelectedRescueVehicle(index)}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                          <span className="text-2xl">{vehicle.icon}</span>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-800">{vehicle.title}</h4>
+                          <p className="text-sm text-gray-600">{vehicle.subtitle}</p>
+                          <p className="text-xs text-gray-500">{vehicle.description}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-gray-800">{vehicle.price}</p>
+                        <p className="text-sm text-gray-600">{vehicle.time}</p>
+                        <p className="text-xs text-orange-600 font-medium">Available 24/7</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Slider */}
+      <PaymentSlider 
+        onPay={handleRescueBooking} 
+        isDisabled={!dropLocation || dropLocation.trim() === '' || rescueVehicles.length === 0 || isLoadingRescueVehicles}
+        isLoading={isLoadingRescueVehicles}
+        customText="Request Emergency Rescue"
+      />
     </div>
   );
 }
@@ -617,13 +1122,276 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
        - Network connectivity issues
        - Payment failures and retry logic
   */
-  const [pickupLocation, setPickupLocation] = useState("YourPickup Location");
-  const [dropLocation, setDropLocation] = useState("Destination");
+  const [pickupLocation, setPickupLocation] = useState("Detecting your location...");
+  const [dropLocation, setDropLocation] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState(0);
+  const [isBooking, setIsBooking] = useState(false);
+  const [suggestedLocations, setSuggestedLocations] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeInput, setActiveInput] = useState<'pickup' | 'drop' | null>(null);
+  const [isLocationChanging, setIsLocationChanging] = useState(false);
+  const [isGettingCurrentLocation, setIsGettingCurrentLocation] = useState(false);
+  
+  // Map references
+  const mapRef = useRef(null);
+  const googleMapRef = useRef(null);
+  const pickupMarkerRef = useRef(null);
+  const dropMarkerRef = useRef(null);
+  const routePolylineRef = useRef(null);
+  
+  // Location coordinates - will be set to current location on load
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [dropCoords, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [driverCount, setDriverCount] = useState(1);
   const [needExtraDrivers, setNeedExtraDrivers] = useState(true);
   const [scrollY, setScrollY] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Initialize Google Maps and detect current location
+  useEffect(() => {
+    const initMap = async () => {
+      if (!mapRef.current || typeof google === 'undefined') return;
+
+      console.log('🗺️ Initializing Google Maps...');
+
+      // Try to get current location first
+      let mapCenter = { lat: 25.4358, lng: 81.8463 }; // Prayagraj as fallback
+      let currentLocationDetected = false;
+      
+      try {
+        console.log('📍 Detecting current location...');
+        const currentLocation = await geocodingService.getCurrentLocation();
+        if (currentLocation) {
+          mapCenter = { lat: currentLocation.lat, lng: currentLocation.lng };
+          setPickupLocation(currentLocation.formattedAddress);
+          setPickupCoords(mapCenter);
+          currentLocationDetected = true;
+          console.log('✅ Current location detected:', currentLocation.formattedAddress);
+        }
+      } catch (error) {
+        console.log('⚠️ Could not detect current location, using fallback');
+      }
+
+      // Initialize map
+      const map = new (window as any).google.maps.Map(mapRef.current, {
+        center: mapCenter,
+        zoom: currentLocationDetected ? 15 : 13, // Zoom in more if current location detected
+        disableDefaultUI: false,
+        zoomControl: true,
+        mapTypeControl: false,
+        scaleControl: true,
+        streetViewControl: false,
+        rotateControl: false,
+        fullscreenControl: true,
+        styles: [
+          {
+            featureType: 'poi',
+            elementType: 'labels',
+            stylers: [{ visibility: 'off' }],
+          },
+        ],
+      });
+
+      googleMapRef.current = map;
+
+      // Add pickup marker (current location)
+      const pickupMarker = new (window as any).google.maps.Marker({
+        position: mapCenter,
+        map: map,
+        title: currentLocationDetected ? 'Your Location' : 'Default Location',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#CF923D',
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3,
+        },
+      });
+
+      pickupMarkerRef.current = pickupMarker;
+
+      // Add destination marker if destination is set
+      if (dropLocation && dropLocation.trim() !== '') {
+        const dropMarker = new (window as any).google.maps.Marker({
+          position: dropCoords || mapCenter,
+          map: map,
+          title: 'Destination',
+          icon: {
+            path: (window as any).google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: '#000000',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 3,
+          },
+        });
+
+        dropMarkerRef.current = dropMarker;
+
+        // Draw route between pickup and destination
+        drawRoute(map, mapCenter, dropCoords || mapCenter);
+
+        // Fit map to show both markers with proper bounds and padding
+        const bounds = new (window as any).google.maps.LatLngBounds();
+        bounds.extend(mapCenter);
+        bounds.extend(dropCoords || mapCenter);
+        
+        // Add padding to bounds for better view
+        const padding = 50; // pixels
+        map.fitBounds(bounds, { top: padding, right: padding, bottom: padding, left: padding });
+        
+        console.log('✅ Google Maps initialized with both markers');
+      } else {
+        // Center map on pickup location only
+        map.setCenter(mapCenter);
+        map.setZoom(currentLocationDetected ? 15 : 13);
+        console.log('✅ Google Maps initialized with current location only');
+      }
+    };
+
+    // Wait for Google Maps to load
+    if (typeof google !== 'undefined') {
+      initMap();
+    } else {
+      // Listen for Google Maps loaded event
+      const handleGoogleMapsLoaded = () => {
+        console.log('🗺️ Google Maps loaded event received');
+        initMap();
+      };
+
+      window.addEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+
+      // Cleanup
+      return () => {
+        window.removeEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+      };
+    }
+  }, [dropLocation]); // Re-initialize when destination changes
+
+  // Function to draw route between two points
+  const drawRoute = (map: any, start: any, end: any) => {
+    if (!map || !start || !end) return;
+
+    try {
+      const directionsService = new (window as any).google.maps.DirectionsService();
+      const directionsRenderer = new (window as any).google.maps.DirectionsRenderer({
+        suppressMarkers: true, // We'll use our custom markers
+        polylineOptions: {
+          strokeColor: '#CF923D',
+          strokeWeight: 4,
+          strokeOpacity: 0.8,
+        },
+      });
+
+      directionsRenderer.setMap(map);
+      routePolylineRef.current = directionsRenderer;
+
+      directionsService.route(
+        {
+          origin: start,
+          destination: end,
+          travelMode: (window as any).google.maps.TravelMode.DRIVING,
+        },
+        (result: any, status: any) => {
+          if (status === 'OK') {
+            directionsRenderer.setDirections(result);
+            console.log('✅ Route drawn successfully');
+          } else {
+            console.warn('⚠️ Directions request failed:', status, '- Using fallback line');
+            // Fallback: draw a simple line between points
+            drawFallbackRoute(map, start, end);
+          }
+        }
+      );
+    } catch (error) {
+      console.warn('⚠️ Directions API not available:', error);
+      // Fallback: draw a simple line between points
+      drawFallbackRoute(map, start, end);
+    }
+  };
+
+  // Fallback route drawing when Directions API is not available
+  const drawFallbackRoute = (map: any, start: any, end: any) => {
+    try {
+      const polyline = new (window as any).google.maps.Polyline({
+        path: [start, end],
+        geodesic: true,
+        strokeColor: '#CF923D',
+        strokeOpacity: 1.0,
+        strokeWeight: 4,
+      });
+      
+      polyline.setMap(map);
+      routePolylineRef.current = polyline;
+      console.log('✅ Fallback route drawn');
+    } catch (error) {
+      console.warn('⚠️ Could not draw fallback route:', error);
+    }
+  };
+
+  // Update map when coordinates change
+  useEffect(() => {
+    if (googleMapRef.current && pickupMarkerRef.current && pickupCoords) {
+      // Update pickup marker
+      pickupMarkerRef.current.setPosition(pickupCoords);
+      
+      // Show destination marker and route when destination is entered
+      if (dropLocation && dropLocation.trim() !== '' && dropCoords) {
+        // Create drop marker if it doesn't exist
+        if (!dropMarkerRef.current) {
+          const dropMarker = new (window as any).google.maps.Marker({
+            position: dropCoords,
+            map: googleMapRef.current,
+            title: 'Destination',
+            icon: {
+              path: (window as any).google.maps.SymbolPath.CIRCLE,
+              scale: 12,
+              fillColor: '#000000',
+              fillOpacity: 1,
+              strokeColor: '#FFFFFF',
+              strokeWeight: 3,
+            },
+          });
+          dropMarkerRef.current = dropMarker;
+        } else {
+          // Update existing drop marker
+          dropMarkerRef.current.setPosition(dropCoords);
+        }
+        
+        // Draw route between pickup and destination
+        drawRoute(googleMapRef.current, pickupCoords, dropCoords);
+        
+        // Fit map to show both markers with proper bounds and padding
+        const bounds = new (window as any).google.maps.LatLngBounds();
+        bounds.extend(pickupCoords);
+        bounds.extend(dropCoords);
+        
+        // Add padding to bounds for better view and focus between the two points
+        const padding = 50; // pixels
+        googleMapRef.current.fitBounds(bounds, { 
+          top: padding, 
+          right: padding, 
+          bottom: padding, 
+          left: padding 
+        });
+      } else {
+        // Remove drop marker and route if destination is cleared
+        if (dropMarkerRef.current) {
+          dropMarkerRef.current.setMap(null);
+          dropMarkerRef.current = null;
+        }
+        if (routePolylineRef.current) {
+          routePolylineRef.current.setMap(null);
+          routePolylineRef.current = null;
+        }
+        
+        // Center map on pickup location only
+        googleMapRef.current.setCenter(pickupCoords);
+        googleMapRef.current.setZoom(15);
+      }
+    }
+  }, [pickupCoords, dropCoords, dropLocation]);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
   const [dragStartTop, setDragStartTop] = useState(0);
@@ -633,29 +1401,39 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
   const [pricingData, setPricingData] = useState<any>(null);
   const [isLoadingPricing, setIsLoadingPricing] = useState(false);
   const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([]);
-  const [pickupCoords, setPickupCoords] = useState({ lat: 28.6139, lng: 77.2090 });
-  const [dropCoords, setDropCoords] = useState({ lat: 28.5355, lng: 77.3910 });
-  
-  // Location change state
-  const [isLocationChanging, setIsLocationChanging] = useState(false);
   const [locationChangeTimeout, setLocationChangeTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [suggestedLocations, setSuggestedLocations] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [activeInput, setActiveInput] = useState<'pickup' | 'drop' | null>(null);
-  const [isGettingCurrentLocation, setIsGettingCurrentLocation] = useState(false);
+  const [showVehicleSheet, setShowVehicleSheet] = useState(false);
+  const [destinationSelected, setDestinationSelected] = useState(false);
+  const [showRescueScreen, setShowRescueScreen] = useState(false);
 
   // Geocoding function using Google Maps API
   const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
     try {
+      // First try known addresses
+      if (KNOWN_ADDRESSES[address]) {
+        console.log('✅ Using known coordinates for:', address);
+        return KNOWN_ADDRESSES[address];
+      }
+      
+      // Try Google Geocoding API as fallback
       const result = await geocodingService.geocodeAddress(address);
       if (result) {
         return { lat: result.lat, lng: result.lng };
       }
-      return null;
+      
+      // Final fallback to current location or Prayagraj
+      console.log('⚠️ Using fallback coordinates for:', address);
+      if (pickupCoords) {
+        return pickupCoords; // Use current location if available
+      }
+      return { lat: 25.4358, lng: 81.8463 }; // Prayagraj as final fallback
     } catch (error) {
       console.error('Geocoding error:', error);
-      toast.error('Failed to find location. Please try a different address.');
-      return null;
+      console.log('⚠️ Using fallback coordinates due to error');
+      if (pickupCoords) {
+        return pickupCoords; // Use current location if available
+      }
+      return { lat: 25.4358, lng: 81.8463 }; // Prayagraj as final fallback
     }
   };
 
@@ -685,7 +1463,7 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
     }
   };
 
-  // Search for location suggestions using Google Places API
+  // Google Places API address search (now with billing enabled)
   const searchLocations = async (query: string) => {
     if (query.length < 2) {
       setSuggestedLocations([]);
@@ -693,20 +1471,78 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
       return;
     }
     
+    console.log('🔍 Searching for locations:', query);
+    
     try {
+      // Ensure geocodingService is initialized
+      if (!geocodingService.isInitialized) {
+        console.log('🔄 Initializing geocodingService...');
+        await geocodingService.init();
+      }
+      
+      // Use Google Places API
+      console.log('🔄 Using Google Places API...');
       const suggestions = await geocodingService.getPlaceSuggestions(query);
-      setSuggestedLocations(suggestions);
-      setShowSuggestions(true);
+      
+      if (suggestions && suggestions.length > 0) {
+        const displaySuggestions = suggestions.map(suggestion => suggestion.description);
+        console.log('✅ Google Places suggestions:', displaySuggestions);
+        setSuggestedLocations(displaySuggestions);
+        setShowSuggestions(true);
+      } else {
+        console.log('⚠️ No Google Places suggestions found');
+        // Fallback to enhanced local search
+        const filtered = ENHANCED_DUMMY_ADDRESSES.filter(addr => {
+          const searchTerm = query.toLowerCase();
+          const address = addr.toLowerCase();
+          return address.includes(searchTerm);
+        }).slice(0, 8);
+        
+        setSuggestedLocations(filtered);
+        setShowSuggestions(true);
+      }
     } catch (error) {
-      console.error('Location search error:', error);
-      // Fallback to dummy addresses if Google Places fails
-      const filtered = DUMMY_ADDRESSES.filter(addr => 
-        addr.toLowerCase().includes(query.toLowerCase())
-      ).slice(0, 5);
+      console.error('❌ Google Places API error:', error);
+      
+      // Fallback to enhanced local search
+      console.log('🔄 Using fallback local search...');
+      const filtered = ENHANCED_DUMMY_ADDRESSES.filter(addr => {
+        const searchTerm = query.toLowerCase();
+        const address = addr.toLowerCase();
+        return address.includes(searchTerm);
+      }).slice(0, 8);
       
       setSuggestedLocations(filtered);
       setShowSuggestions(true);
     }
+  };
+
+  // Handle Rescue service click
+  const handleRescueClick = async () => {
+    console.log('🚨 Rescue service requested');
+    
+    // Auto-fetch current location
+    try {
+      const currentLocation = await geocodingService.getCurrentLocation();
+      if (currentLocation) {
+        setPickupLocation(currentLocation.formattedAddress);
+        setPickupCoords({ lat: currentLocation.lat, lng: currentLocation.lng });
+        console.log('✅ Current location fetched for rescue:', currentLocation.formattedAddress);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch current location for rescue:', error);
+      // Use fallback location
+      setPickupLocation('Prayagraj, Uttar Pradesh');
+      setPickupCoords({ lat: 25.4358, lng: 81.8463 });
+    }
+    
+    // Show rescue screen
+    setShowRescueScreen(true);
+  };
+
+  // Handle back from rescue screen
+  const handleBackFromRescue = () => {
+    setShowRescueScreen(false);
   };
 
   // Handle location change with debouncing
@@ -715,6 +1551,8 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
       setPickupLocation(value);
     } else {
       setDropLocation(value);
+      // Reset destination selected when user starts typing
+      setDestinationSelected(false);
     }
     
     setActiveInput(type);
@@ -740,6 +1578,8 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
       setPickupLocation(address);
     } else {
       setDropLocation(address);
+      // Mark destination as selected when user selects from dropdown
+      setDestinationSelected(true);
     }
     
     setShowSuggestions(false);
@@ -758,7 +1598,11 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
 
   // Fetch pricing data from API
   const fetchPricingData = async () => {
-    if (!pickupCoords.lat || !dropCoords.lat) return;
+    // Check if coordinates are available and not null
+    if (!pickupCoords || !dropCoords || !pickupCoords.lat || !dropCoords.lat) {
+      console.log('⚠️ Cannot fetch pricing data: coordinates not available');
+      return;
+    }
     
     setIsLoadingPricing(true);
     try {
@@ -788,9 +1632,36 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
     }
   };
 
-  // Fetch pricing when coordinates change
+  // Show vehicle sheet when destination is actually selected (not just typed)
   useEffect(() => {
-    fetchPricingData();
+    if (destinationSelected && dropLocation && dropLocation.trim() !== '') {
+      setShowVehicleSheet(true);
+    } else {
+      setShowVehicleSheet(false);
+    }
+  }, [destinationSelected, dropLocation]);
+
+  // Fetch pricing when coordinates change (with debounce)
+  useEffect(() => {
+    // Clear any existing timeout
+    if (locationChangeTimeout) {
+      clearTimeout(locationChangeTimeout);
+    }
+    
+    // Set a new timeout to debounce the API call
+    const timeout = setTimeout(() => {
+      fetchPricingData();
+    }, 1000); // Wait 1 second after coordinates stop changing
+    
+    // Store timeout reference for cleanup
+    setLocationChangeTimeout(timeout);
+    
+    // Cleanup function
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
   }, [pickupCoords, dropCoords]);
 
   // Cleanup timeout on unmount
@@ -963,34 +1834,26 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
     }
   };
 
+  // Show Rescue screen if requested
+  if (showRescueScreen) {
+    return (
+      <RescueScreen
+        pickupLocation={pickupLocation}
+        onBack={handleBackFromRescue}
+        onRescueBooked={onRideBooked}
+      />
+    );
+  }
+
   return (
     <div className="relative size-full min-h-screen bg-white">
-      {/* Background Map */}
+      {/* Interactive Google Maps */}
       <div className="absolute inset-0">
         <div 
-          className="bg-center bg-cover bg-no-repeat w-full h-[70%]" 
-          style={{ backgroundImage: `url('${imgImage}')` }} 
+          ref={mapRef}
+          className="w-full h-[70%]"
+          style={{ minHeight: '400px' }}
         />
-        
-        {/* Map Route Overlay */}
-        <div className="absolute top-[200px] left-[60px] right-[60px] h-[300px] pointer-events-none">
-          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 527 383">
-            <path d={svgPaths.p109e7880} stroke="black" strokeWidth="3" />
-          </svg>
-          
-          {/* Location Markers */}
-          <div className="absolute top-[20%] left-[10%]">
-            <svg className="w-8 h-8" fill="none" preserveAspectRatio="none" viewBox="0 0 31 31">
-              <path d={svgPaths.p354bd900} stroke="#CF923D" strokeWidth="6" />
-            </svg>
-          </div>
-          
-          <div className="absolute bottom-[20%] right-[20%]">
-            <svg className="w-7 h-9" fill="none" preserveAspectRatio="none" viewBox="0 0 28 37">
-              <path d={svgPaths.p23784500} fill="black" />
-            </svg>
-          </div>
-        </div>
       </div>
 
       {/* Location Inputs */}
@@ -1033,7 +1896,7 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
             <div className="pb-4 border-b border-[#f0f0f0] mb-6">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="font-['Poppins:Medium',_sans-serif] text-[#080a24] text-[28px]">
-                  Select Ride
+                  Choose Your Ride
                 </h2>
                 {isLoadingPricing && (
                   <div className="flex items-center gap-2 text-[#CF923D] text-[12px]">
@@ -1050,57 +1913,91 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
                 )}
               </div>
               <p className="font-['Poppins:Regular',_sans-serif] text-[#656565] text-[16px]">
-                1st driver drops you 2nd driver delivers your car.
+                🚗 Welcome! Select your preferred vehicle and we'll get you there safely.
               </p>
             </div>
           </div>
 
-          {/* Vehicle Options */}
+          {/* Raahi Services - Always shown */}
           <div className="space-y-4 pb-8">
-            {isLoadingPricing ? (
-              // Show shimmer effect while loading
-              <>
-                <ShimmerVehicleCard />
-                <ShimmerVehicleCard />
-              </>
-            ) : (
-              vehicles.map((vehicle, index) => (
-              <div key={index}>
-                <VehicleOption
-                  {...vehicle}
-                  isSelected={selectedVehicle === index}
-                  onSelect={() => setSelectedVehicle(index)}
-                />
-                
-                {/* Driver Count Selector - Show after first vehicle (Bike Rescue) */}
-                {index === 0 && (
-                  <div className="mt-6">
-                    <DriverCountSelector
-                      count={driverCount}
-                      onIncrease={() => setDriverCount(prev => prev + 1)}
-                      onDecrease={() => setDriverCount(prev => Math.max(1, prev - 1))}
-                      onToggleExtra={() => setNeedExtraDrivers(prev => !prev)}
-                      needExtraDrivers={needExtraDrivers}
-                      isEnabled={selectedVehicle === 0} // Only enabled when Bike Rescue is selected
-                    />
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Check other Raahi Services</h3>
+              <div className="space-y-3">
+                  <div 
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-orange-50 hover:border-orange-200 border-2 border-transparent transition-all duration-200 active:scale-95"
+                    onClick={handleRescueClick}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-800">Rescue</h4>
+                        <p className="text-sm text-gray-600">Emergency vehicle assistance</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">Available 24/7</p>
+                      <p className="text-xs text-orange-600 font-medium">Tap to request</p>
+                    </div>
                   </div>
-                )}
               </div>
-            ))
-            )}
-            
-            {/* Extra spacing for scroll content */}
-            <div className="h-20 flex items-center justify-center">
-              <p className="text-[#999] text-sm font-['Poppins:Regular',_sans-serif]">
-                Scroll up to see more content
-              </p>
+              {!dropLocation || dropLocation.trim() === '' ? (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    💡 Enter your destination to see available ride options
+                  </p>
+                </div>
+              ) : isLoadingPricing ? (
+                <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+                  <p className="text-sm text-yellow-700">
+                    🔄 Loading vehicle options...
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                  <p className="text-sm text-green-700">
+                    ✅ Destination selected! Vehicle options will appear below
+                  </p>
+                </div>
+              )}
             </div>
+          </div>
+            
+          {/* Extra spacing for scroll content */}
+          <div className="h-20 flex items-center justify-center">
+            <p className="text-[#999] text-sm font-['Poppins:Regular',_sans-serif]">
+              Scroll up to see more content
+            </p>
           </div>
         </div>
       </div>
 
+      {/* Vehicle Selection Bottom Sheet */}
+      {showVehicleSheet && (
+        <VehicleBottomSheet
+          vehicles={vehicles}
+          isLoadingPricing={isLoadingPricing}
+          selectedVehicle={selectedVehicle}
+          onSelectVehicle={setSelectedVehicle}
+          driverCount={driverCount}
+          onIncreaseDrivers={() => setDriverCount(prev => prev + 1)}
+          onDecreaseDrivers={() => setDriverCount(prev => Math.max(1, prev - 1))}
+          needExtraDrivers={needExtraDrivers}
+          onToggleExtraDrivers={() => setNeedExtraDrivers(prev => !prev)}
+          onClose={() => setShowVehicleSheet(false)}
+        />
+      )}
+
       {/* Payment Slider */}
-      <PaymentSlider onPay={handlePay} />
+      <PaymentSlider 
+        onPay={handlePay} 
+        isDisabled={!dropLocation || dropLocation.trim() === '' || isLoadingPricing || !showVehicleSheet || selectedVehicle === null}
+        isLoading={isLoadingPricing}
+        selectedVehicle={selectedVehicle}
+      />
     </div>
   );
 }

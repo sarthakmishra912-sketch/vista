@@ -6,36 +6,54 @@ interface DashboardScreenProps {
   onFindRide: () => void;
   onOpenDriversApp: () => void;
   onSwitchAccount: () => void;
+  onLogout?: () => void;
   onOpenAdmin?: () => void;
   userEmail?: string;
+  isLoggedIn?: boolean;
 }
 
 
 
-function UserAccountButton({ userEmail, onSwitchAccount }: { userEmail?: string; onSwitchAccount: () => void }) {
+function UserAccountButton({ userEmail, onSwitchAccount, onLogout, isLoggedIn }: { userEmail?: string; onSwitchAccount: () => void; onLogout?: () => void; isLoggedIn?: boolean }) {
+  // Debug logging - remove after testing
+  console.log('👤 UserAccountButton:', { isLoggedIn, userEmail, willShow: !!(isLoggedIn && userEmail) });
+  
+  // If user is not logged in, don't show account button
+  if (!isLoggedIn || !userEmail) {
+    console.log('❌ UserAccountButton: Not showing (user not logged in or no email)');
+    return null;
+  }
+  
+  console.log('✅ UserAccountButton: Showing button');
   return (
-    <button
-      onClick={onSwitchAccount}
-      className="absolute bg-[#eedfca] box-border content-stretch flex gap-3 h-[48px] items-center justify-center px-3 py-2 rounded-full top-[80px] translate-x-[-50%] w-full max-w-[min(360px,calc(100vw-48px))] hover:bg-[#e8dbc9] transition-colors active:scale-95"
-      style={{ left: "50%" }}
-    >
-      <div aria-hidden="true" className="absolute border-[#a89c8a] border-[0.78px] border-solid inset-0 pointer-events-none rounded-full" />
-      <div className="relative shrink-0 size-[36px]">
-        <img className="block max-w-none size-full rounded-full object-cover" height="36" src={imgEllipse299} width="36" alt="User avatar" />
-      </div>
-      <div className="font-medium leading-[0] not-italic relative flex-1 text-[#353535] text-base min-w-0">
-        <p className="leading-[normal] truncate">{userEmail || 'Dhruvsiwach@gmail.com'}</p>
-      </div>
-      <div className="flex h-[12px] items-center justify-center relative shrink-0 w-[22px]">
-        <div className="flex-none rotate-[90deg]">
-          <div className="h-[22px] relative w-[12px]">
-            <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 15 27">
-              <path d={svgPaths.p5825700} fill="var(--fill-0, #A89C8A)" id="icon_back" stroke="var(--stroke-0, #EEDFCA)" strokeWidth="0.835121" />
-            </svg>
-          </div>
+    <div className="absolute top-[80px] translate-x-[-50%] w-full max-w-[min(360px,calc(100vw-48px))] flex gap-2 px-3" style={{ left: "50%" }}>
+      {/* User Info Button */}
+      <button
+        onClick={onSwitchAccount}
+        className="bg-[#eedfca] box-border content-stretch flex gap-3 h-[48px] items-center justify-center px-3 py-2 rounded-full flex-1 hover:bg-[#e8dbc9] transition-colors active:scale-95"
+      >
+        <div aria-hidden="true" className="absolute border-[#a89c8a] border-[0.78px] border-solid inset-0 pointer-events-none rounded-full" />
+        <div className="relative shrink-0 size-[36px]">
+          <img className="block max-w-none size-full rounded-full object-cover" height="36" src={imgEllipse299} width="36" alt="User avatar" />
         </div>
-      </div>
-    </button>
+        <div className="font-medium leading-[0] not-italic relative flex-1 text-[#353535] text-base min-w-0">
+          <p className="leading-[normal] truncate">{userEmail}</p>
+        </div>
+      </button>
+      
+      {/* Logout Button */}
+      {onLogout && (
+        <button
+          onClick={onLogout}
+          className="bg-[#ef4444] box-border content-stretch flex h-[48px] w-[48px] items-center justify-center rounded-full hover:bg-[#dc2626] transition-colors active:scale-95 shrink-0"
+          title="Logout"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="white" viewBox="0 0 24 24" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -123,7 +141,10 @@ function ActionButtons({ onFindRide, onOpenDriversApp }: { onFindRide: () => voi
   );
 }
 
-export default function DashboardScreen({ onFindRide, onOpenDriversApp, onSwitchAccount, onOpenAdmin, userEmail }: DashboardScreenProps) {
+export default function DashboardScreen({ onFindRide, onOpenDriversApp, onSwitchAccount, onLogout, onOpenAdmin, userEmail, isLoggedIn }: DashboardScreenProps) {
+  // Debug logging - remove after testing
+  console.log('🏠 DashboardScreen render:', { isLoggedIn, userEmail });
+  
   return (
     <div className="relative size-full min-h-screen overflow-hidden" data-name="Dashboard">
       {/* Background */}
@@ -145,20 +166,22 @@ export default function DashboardScreen({ onFindRide, onOpenDriversApp, onSwitch
       {/* Raahi Branding */}
       <RaahiBranding />
       
-      {/* User Account Button */}
-      <UserAccountButton userEmail={userEmail} onSwitchAccount={onSwitchAccount} />
+      {/* User Account Button - Only show if logged in */}
+      <UserAccountButton userEmail={userEmail} onSwitchAccount={onSwitchAccount} onLogout={onLogout} isLoggedIn={isLoggedIn} />
       
       {/* Action Buttons */}
       <ActionButtons onFindRide={onFindRide} onOpenDriversApp={onOpenDriversApp} />
       
-      {/* Switch Account Link */}
-      <button
-        onClick={onSwitchAccount}
-        className="absolute font-medium leading-[0] not-italic text-[#353330] text-xl bottom-[120px] translate-x-[-50%] hover:text-[#11211e] transition-colors active:scale-95"
-        style={{ left: "50%" }}
-      >
-        <p className="[text-decoration-skip-ink:none] [text-underline-position:from-font] decoration-solid leading-[normal] underline">Switch Account?</p>
-      </button>
+      {/* Switch Account Link - Only show if logged in */}
+      {isLoggedIn && (
+        <button
+          onClick={onSwitchAccount}
+          className="absolute font-medium leading-[0] not-italic text-[#353330] text-xl bottom-[120px] translate-x-[-50%] hover:text-[#11211e] transition-colors active:scale-95"
+          style={{ left: "50%" }}
+        >
+          <p className="[text-decoration-skip-ink:none] [text-underline-position:from-font] decoration-solid leading-[normal] underline">Switch Account?</p>
+        </button>
+      )}
       
       {/* Footer Text (Click 5 times to access admin) */}
       <div 

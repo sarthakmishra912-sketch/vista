@@ -167,7 +167,21 @@ class ApiClient {
         headers,
       });
 
-      const data = await response.json();
+      // Handle non-JSON responses (like 429 rate limit)
+      let data: any;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Handle text responses (like rate limit messages)
+        const text = await response.text();
+        data = {
+          success: false,
+          message: text || 'Request failed',
+          status: response.status
+        };
+      }
       const duration = Date.now() - startTime;
 
       // Log API call success

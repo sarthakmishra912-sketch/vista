@@ -1,9 +1,10 @@
-import React, { lazy, Suspense, useMemo, useCallback, startTransition } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect } from 'react';
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import useAppState from './hooks/useAppState';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PricingProvider } from './contexts/PricingContext';
+import realTimeService from './services/realTimeService';
 
 // Global callback for document verification success
 declare global {
@@ -14,6 +15,8 @@ declare global {
 
 // 🚀 PERFORMANCE OPTIMIZATION: Lazy load all screens with error handling
 const LoginScreen = lazy(() => import('./screens/LoginScreen').catch(() => ({ default: () => <div>Login Screen Loading...</div> })));
+const MobileNumberScreen = lazy(() => import('./components/auth/MobileNumberScreen').catch(() => ({ default: () => <div>Mobile Number Screen Loading...</div> })));
+const MobileOTPScreen = lazy(() => import('./components/auth/MobileOTPScreen').catch(() => ({ default: () => <div>OTP Screen Loading...</div> })));
 const DashboardScreen = lazy(() => import('./components/DashboardScreen').catch(() => ({ default: () => <div>Dashboard Loading...</div> })));
 const ContactNumberScreen = lazy(() => import('./components/ContactNumberScreen').catch(() => ({ default: () => <div>Contact Screen Loading...</div> })));
 const OTPVerificationScreen = lazy(() => import('./components/OTPVerificationScreen').catch(() => ({ default: () => <div>OTP Screen Loading...</div> })));
@@ -49,8 +52,27 @@ const ScreenLoader = () => (
   </div>
 );
 
+// Main App Component - wraps inner content with providers
 export default function App() {
+  return (
+    <AuthProvider>
+      <PricingProvider>
+        <AppContent />
+      </PricingProvider>
+    </AuthProvider>
+  );
+}
+
+// Inner component with access to auth context
+function AppContent() {
   const appState = useAppState();
+  const auth = useAuth();
+  
+  // Initialize WebSocket connection when app starts
+  useEffect(() => {
+    console.log('🚀 Initializing WebSocket connection...');
+    realTimeService.connect();
+  }, []);
   
   // Guard against undefined state
   if (!appState) {
@@ -58,28 +80,60 @@ export default function App() {
   }
   
   const {
-    isLoggedIn,
-    loginMethod,
     currentScreen,
     userEmail,
     userPhoneNumber,
-    isDriverMode,
     isDriverOnline,
     driverData,
     bookingData,
-    isAppInitializing
+    isAppInitializing,
+    isLoggedIn,
+    isDriverMode
   } = appState;
 
   const { updateAppState } = appState;
 
-  // Check for admin URL parameter
+  // 🔄 CRITICAL: Sync AuthContext authentication with appState
+  React.useEffect(() => {
+    console.log("🔄 Syncing auth state:", {
+      authIsAuthenticated: auth.isAuthenticated,
+      authUser: auth.user,
+      appStateIsLoggedIn: isLoggedIn
+    });
+    
+    // When AuthContext confirms authentication, update appState
+    if (auth.isAuthenticated && auth.user && !isLoggedIn) {
+      console.log("✅ User authenticated in AuthContext, syncing to appState");
+      updateAppState({ 
+        isLoggedIn: true,
+        userEmail: auth.user.email || userEmail
+      });
+    }
+    
+    // When AuthContext confirms logout, update appState
+    if (!auth.isAuthenticated && isLoggedIn) {
+      console.log("❌ User logged out in AuthContext, syncing to appState");
+      updateAppState({ 
+        isLoggedIn: false
+      });
+    }
+  }, [auth.isAuthenticated, auth.user, isLoggedIn, userEmail, updateAppState]);
+
+  // Check for admin URL parameter - only on initial load
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('admin') === 'true') {
+    const hasAdminParam = urlParams.get('admin') === 'true';
+    
+    if (hasAdminParam) {
       console.log("👨‍💼 Admin mode detected via URL, navigating to admin dashboard");
       updateAppState({ currentScreen: 'admin-dashboard' });
+      
+      // Remove admin parameter from URL to prevent re-triggering on refresh
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+      console.log("🔧 Removed admin parameter from URL");
     }
-  }, [updateAppState]);
+  }, []); // Empty deps - only run once on mount
 
   // Set up global callback for document verification success
   React.useEffect(() => {
@@ -101,13 +155,35 @@ export default function App() {
 
   // 🚀 PERFORMANCE: Memoize handlers to prevent unnecessary re-renders
   const handleLogin = useCallback((method: string) => {
-    console.log(`🔐 User login with ${method}`);
-    updateAppState({ 
-      isLoggedIn: true, 
-      loginMethod: method,
-      currentScreen: 'dashboard'
-    });
-  }, [updateAppState]);
+    console.log(`🔐 User login with ${method}`, { isDriverMode });
+    
+    // For mobile OTP, show phone number input screen first
+    if (method === 'mobile-otp') {
+      updateAppState({ 
+        loginMethod: method,
+        currentScreen: 'mobile-number' as any
+      });
+    } else {
+      // For other methods (google, truecaller), check if driver mode
+      if (isDriverMode) {
+        console.log("🚗 Driver login - redirecting to driver onboarding");
+        updateAppState({ 
+          isLoggedIn: true, 
+          loginMethod: method,
+          currentScreen: 'driver-email-collection' // Start driver onboarding
+        });
+        toast.success(`Logged in as driver with ${method}`);
+      } else {
+        // Passenger login - go to dashboard
+        updateAppState({ 
+          isLoggedIn: true, 
+          loginMethod: method,
+          currentScreen: 'dashboard'
+        });
+        toast.success(`Logged in with ${method}`);
+      }
+    }
+  }, [isDriverMode, updateAppState]);
 
   const handleContactSubmit = useCallback((phone: string) => {
     console.log("📱 Contact submitted:", phone);
@@ -125,6 +201,163 @@ export default function App() {
     });
   }, [updateAppState]);
 
+  // 📱 Mobile OTP Flow Handlers
+  const handleMobileNumberSubmit = useCallback(async (phoneNumber: string, countryCode: string) => {
+    console.log("📱 Mobile number submitted:", phoneNumber);
+    try {
+      // Extract just the phone number without country code for sendOTP
+      const phoneOnly = phoneNumber.replace(countryCode, '');
+      
+      // Send OTP via authService
+      await auth.sendOTP(phoneOnly, countryCode);
+      
+      // Store phone number and navigate to OTP screen
+      updateAppState({ 
+        userPhoneNumber: phoneNumber,
+        currentScreen: 'mobile-otp' as any
+      });
+      
+      toast.success('OTP sent successfully!');
+    } catch (error: any) {
+      console.error('Failed to send OTP:', error);
+      toast.error(error.message || 'Failed to send OTP. Please try again.');
+    }
+  }, [auth, updateAppState]);
+
+  const handleMobileOTPVerify = useCallback(async (otp: string) => {
+    console.log("🔢 Mobile OTP verified:", otp, { isDriverMode });
+    try {
+      if (!userPhoneNumber) {
+        throw new Error('Phone number not found');
+      }
+      
+      // Verify OTP via authService
+      const loginResponse = await auth.login({
+        method: 'mobile_otp',
+        phone: userPhoneNumber,
+        otp: otp
+      });
+      
+      // Update login state first
+      updateAppState({ 
+        isLoggedIn: true
+      });
+      
+      // Navigate based on driver mode
+      if (isDriverMode) {
+        console.log("🚗 Driver OTP verified - checking driver status...");
+        toast.loading('Checking driver status...', { id: 'driver-status-check' });
+        
+        // Check driver status via API
+        try {
+          const accessToken = loginResponse.tokens.accessToken;
+          
+          const response = await fetch('http://localhost:5001/api/driver/onboarding/status', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          const data = await response.json();
+          
+          toast.dismiss('driver-status-check');
+          
+          if (data.success && data.data) {
+            const { onboarding_status, can_start_rides, is_verified } = data.data;
+            
+            console.log("📊 Driver status after login:", {
+              onboarding_status,
+              can_start_rides,
+              is_verified
+            });
+
+            // Route based on driver status
+            if (can_start_rides && is_verified) {
+              // Verified driver - go to dashboard
+              console.log("✅ Verified driver - going to dashboard");
+              updateAppState({ 
+                currentScreen: 'driver-dashboard'
+              });
+              toast.success('Welcome back!');
+            } else {
+              // Incomplete onboarding - resume from last step
+              console.log("⏳ Driver onboarding incomplete - resuming from:", onboarding_status);
+              
+              const screenMap: { [key: string]: string } = {
+                'EMAIL_COLLECTION': 'driver-email-collection',
+                'LANGUAGE_SELECTION': 'driver-language-selection',
+                'EARNING_SETUP': 'driver-earning-setup',
+                'VEHICLE_SELECTION': 'driver-vehicle-selection',
+                'LICENSE_UPLOAD': 'driver-license-upload',
+                'PROFILE_PHOTO': 'driver-profile-photo',
+                'DOCUMENT_UPLOAD': 'driver-document-upload',
+                'VERIFICATION_PENDING': 'driver-document-verification',
+              };
+              
+              const nextScreen = screenMap[onboarding_status] || 'driver-email-collection';
+              
+              updateAppState({ 
+                currentScreen: nextScreen as any
+              });
+              toast.success('Continue your driver registration');
+            }
+          } else if (response.status === 404) {
+            // No driver profile - start onboarding
+            console.log("📝 No driver profile - starting onboarding");
+            updateAppState({ 
+              currentScreen: 'driver-email-collection'
+            });
+            toast.success('Complete driver registration');
+          } else {
+            throw new Error(data.message || 'Failed to check driver status');
+          }
+        } catch (statusError: any) {
+          console.error('❌ Error checking driver status:', statusError);
+          toast.dismiss('driver-status-check');
+          
+          // On error, start onboarding
+          updateAppState({ 
+            currentScreen: 'driver-email-collection'
+          });
+          toast.success('Complete driver registration');
+        }
+      } else {
+        // Passenger login - go to dashboard
+        updateAppState({ 
+          currentScreen: 'dashboard'
+        });
+        toast.success('Login successful!');
+      }
+    } catch (error: any) {
+      console.error('Failed to verify OTP:', error);
+      toast.error(error.message || 'Invalid OTP. Please try again.');
+      throw error; // Re-throw to let the component handle it
+    }
+  }, [auth, userPhoneNumber, isDriverMode, updateAppState]);
+
+  const handleMobileOTPResend = useCallback(async () => {
+    console.log("🔄 Resending OTP");
+    try {
+      if (!userPhoneNumber) {
+        throw new Error('Phone number not found');
+      }
+      
+      // Extract country code and phone number
+      const countryCode = userPhoneNumber.substring(0, 3); // e.g., +91
+      const phoneOnly = userPhoneNumber.substring(3);
+      
+      // Resend OTP via authService
+      await auth.sendOTP(phoneOnly, countryCode);
+      toast.success('OTP resent successfully!');
+    } catch (error: any) {
+      console.error('Failed to resend OTP:', error);
+      toast.error(error.message || 'Failed to resend OTP. Please try again.');
+      throw error;
+    }
+  }, [auth, userPhoneNumber]);
+
   const handleTermsAccept = useCallback(() => {
     console.log("📋 Terms accepted");
     updateAppState({ 
@@ -134,10 +367,36 @@ export default function App() {
 
   const handleFindRide = useCallback(() => {
     console.log("🚗 Find ride clicked");
+    console.log("🔍 Auth state check:", {
+      'auth.isAuthenticated': auth.isAuthenticated,
+      'auth.user': auth.user,
+      'isLoggedIn': isLoggedIn,
+      'currentScreen': currentScreen
+    });
+    
+    // Check BOTH authentication states - use the stricter check
+    // For a user to access booking, they must be authenticated in BOTH contexts
+    const isUserAuthenticated = auth.isAuthenticated && isLoggedIn;
+    
+    if (!isUserAuthenticated) {
+      console.log("🔐 User not authenticated, redirecting to login");
+      console.log("❌ Auth failed because:", {
+        authContextAuthenticated: auth.isAuthenticated,
+        appStateLoggedIn: isLoggedIn
+      });
+      updateAppState({ 
+        currentScreen: 'login',
+        isLoggedIn: false
+      });
+      toast.info('Please login to book a ride');
+      return;
+    }
+    
+    console.log("✅ User authenticated, proceeding to booking");
     updateAppState({ 
       currentScreen: 'booking'
     });
-  }, [updateAppState]);
+  }, [auth.isAuthenticated, auth.user, isLoggedIn, currentScreen, updateAppState]);
 
   const handleRideBooked = useCallback((rideData: any) => {
     console.log("🚗 Ride booked:", rideData);
@@ -156,12 +415,13 @@ export default function App() {
   }, [updateAppState]);
 
   const handleCancelBooking = useCallback(() => {
-    console.log("❌ Booking cancelled");
+    console.log("❌ Booking cancelled - returning to booking screen");
     updateAppState({ 
-      currentScreen: 'dashboard',
+      currentScreen: 'booking',
       bookingData: null,
       driverData: null
     });
+    toast.info('Ride search cancelled');
   }, [updateAppState]);
 
   const handleBackToDashboardFromBooking = useCallback(() => {
@@ -187,13 +447,109 @@ export default function App() {
     });
   }, [updateAppState]);
 
-  const handleOpenDriversApp = useCallback(() => {
-    console.log("🚗 Open drivers app");
-    updateAppState({ 
-      currentScreen: 'driver-login',
-      isDriverMode: true
-    });
-  }, [updateAppState]);
+  const handleOpenDriversApp = useCallback(async () => {
+    console.log("🚗 Open drivers app clicked");
+    
+    // 🎯 PRODUCTION FIX: Check if user is already logged in
+    if (!auth.isAuthenticated || !isLoggedIn) {
+      console.log("❌ Not logged in - showing login screen");
+      updateAppState({ 
+        currentScreen: 'login',
+        isDriverMode: true
+      });
+      toast.info('Login as a driver');
+      return;
+    }
+
+    // User is logged in - check their driver status
+    console.log("✅ User logged in - checking driver status...");
+    toast.loading('Checking driver status...', { id: 'driver-status' });
+    
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      
+      if (!accessToken) {
+        throw new Error('No access token found');
+      }
+
+      const response = await fetch('http://localhost:5001/api/driver/onboarding/status', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        const { onboarding_status, can_start_rides, is_verified } = data.data;
+        
+        console.log("📊 Driver status:", {
+          onboarding_status,
+          can_start_rides,
+          is_verified
+        });
+
+        toast.dismiss('driver-status');
+
+        // Route based on driver status
+        if (can_start_rides && is_verified) {
+          // Driver is fully verified - go to driver dashboard
+          console.log("✅ Driver verified - going to dashboard");
+          updateAppState({ 
+            currentScreen: 'driver-dashboard',
+            isDriverMode: true
+          });
+          toast.success('Welcome back!');
+        } else {
+          // Driver exists but onboarding incomplete - resume onboarding
+          console.log("⏳ Driver onboarding incomplete - resuming from:", onboarding_status);
+          
+          // Map onboarding status to screen
+          const screenMap: { [key: string]: string } = {
+            'EMAIL_COLLECTION': 'driver-email-collection',
+            'LANGUAGE_SELECTION': 'driver-language-selection',
+            'EARNING_SETUP': 'driver-earning-setup',
+            'VEHICLE_SELECTION': 'driver-vehicle-selection',
+            'LICENSE_UPLOAD': 'driver-license-upload',
+            'PROFILE_PHOTO': 'driver-profile-photo',
+            'DOCUMENT_UPLOAD': 'driver-document-upload',
+            'VERIFICATION_PENDING': 'driver-document-verification',
+          };
+          
+          const nextScreen = screenMap[onboarding_status] || 'driver-email-collection';
+          
+          updateAppState({ 
+            currentScreen: nextScreen as any,
+            isDriverMode: true
+          });
+          toast.info('Continue your driver registration');
+        }
+      } else if (response.status === 404) {
+        // No driver profile - start onboarding
+        console.log("📝 No driver profile - starting onboarding");
+        toast.dismiss('driver-status');
+        updateAppState({ 
+          currentScreen: 'driver-email-collection',
+          isDriverMode: true
+        });
+        toast.info('Complete driver registration');
+      } else {
+        throw new Error(data.message || 'Failed to check driver status');
+      }
+    } catch (error: any) {
+      console.error('❌ Error checking driver status:', error);
+      toast.dismiss('driver-status');
+      
+      // On error, assume first-time driver and start onboarding
+      updateAppState({ 
+        currentScreen: 'driver-email-collection',
+        isDriverMode: true
+      });
+      toast.info('Complete driver registration');
+    }
+  }, [auth.isAuthenticated, isLoggedIn, updateAppState]);
 
   const handleSwitchAccount = useCallback(() => {
     console.log("🔄 Switch account");
@@ -206,6 +562,32 @@ export default function App() {
       userPhoneNumber: ''
     });
   }, [updateAppState]);
+
+  const handleLogout = useCallback(async () => {
+    console.log("🚪 Logout clicked");
+    try {
+      // Logout from AuthContext (clears tokens)
+      await auth.logout();
+      
+      // Clear app state
+      updateAppState({ 
+        isLoggedIn: false,
+        loginMethod: '',
+        currentScreen: 'dashboard',
+        isDriverMode: false,
+        userEmail: '',
+        userPhoneNumber: '',
+        bookingData: null,
+        driverData: null
+      });
+      
+      toast.success('Logged out successfully!');
+      console.log("✅ Logout complete");
+    } catch (error) {
+      console.error("❌ Logout error:", error);
+      toast.error('Failed to logout. Please try again.');
+    }
+  }, [auth, updateAppState]);
 
   const handleBackToLogin = useCallback(() => {
     console.log("🔐 Back to login");
@@ -250,11 +632,64 @@ export default function App() {
     });
   }, [updateAppState]);
 
-  const handleDriverEmailCollectionContinue = useCallback((emailData: any) => {
-    console.log("📧 Driver email collection continue:", emailData);
-    updateAppState({ 
-      currentScreen: 'driver-language-selection'
-    });
+  const handleDriverEmailCollectionContinue = useCallback(async (driverData: { firstName: string; lastName: string; email: string }) => {
+    console.log("📧 Driver details collected:", driverData);
+    
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      
+      if (!accessToken) {
+        toast.error('Please login again');
+        return;
+      }
+
+      // Update user profile with collected details
+      const response = await fetch('http://localhost:5001/api/auth/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          firstName: driverData.firstName,
+          lastName: driverData.lastName,
+          email: driverData.email
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log("✅ Driver profile updated:", data.data);
+        
+        // Update user in localStorage
+        const updatedUser = {
+          ...data.data.user,
+          firstName: driverData.firstName,
+          lastName: driverData.lastName,
+          email: driverData.email
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        
+        // Update app state with new user email
+        updateAppState({ 
+          currentScreen: 'driver-language-selection',
+          userEmail: driverData.email
+        });
+        
+        toast.success('Profile updated successfully!');
+      } else {
+        throw new Error(data.message || 'Failed to update profile');
+      }
+    } catch (error: any) {
+      console.error('❌ Error updating driver profile:', error);
+      toast.error(error.message || 'Failed to update profile');
+      
+      // Continue anyway to language selection
+      updateAppState({ 
+        currentScreen: 'driver-language-selection'
+      });
+    }
   }, [updateAppState]);
 
   const handleDriverEmailCollectionBack = useCallback(() => {
@@ -449,7 +884,9 @@ export default function App() {
       onFindRide: () => {},
       onOpenDriversApp: () => {},
       onSwitchAccount: () => {},
-      userEmail
+      onLogout: () => {},
+      userEmail,
+      isLoggedIn: false // During initialization, always show as not logged in
     });
   }
 
@@ -616,6 +1053,8 @@ export default function App() {
       selectedVehicle: bookingData?.selectedVehicle,
       pickupLocation: bookingData?.pickupLocation,
       dropLocation: bookingData?.dropLocation,
+      pickupCoords: bookingData?.pickupCoords,
+      dropCoords: bookingData?.dropCoords,
       onDriverFound: handleDriverFound,
       onCancel: handleCancelBooking,
       onBack: handleBackFromBookingLoader
@@ -663,6 +1102,24 @@ export default function App() {
     });
   }
 
+  if (currentScreen === 'mobile-number') {
+    console.log("📱 Rendering Mobile Number Screen");
+    return renderScreen(MobileNumberScreen, {
+      onSubmit: handleMobileNumberSubmit,
+      onBack: () => updateAppState({ currentScreen: 'login' })
+    });
+  }
+
+  if (currentScreen === 'mobile-otp') {
+    console.log("🔢 Rendering Mobile OTP Screen");
+    return renderScreen(MobileOTPScreen, {
+      phoneNumber: userPhoneNumber || '',
+      onVerify: handleMobileOTPVerify,
+      onResend: handleMobileOTPResend,
+      onBack: () => updateAppState({ currentScreen: 'mobile-number' as any })
+    });
+  }
+
   if (currentScreen === 'admin-dashboard') {
     console.log("👨‍💼 Rendering Admin Dashboard Screen");
     return renderScreen(AdminDashboardScreen, {
@@ -671,21 +1128,19 @@ export default function App() {
   }
 
   // Default screen - Dashboard (always shown first)
-  console.log("🏠 Rendering Dashboard Screen");
+  console.log("🏠 Rendering Dashboard Screen", { isLoggedIn, userEmail });
   return (
-    <AuthProvider>
-      <PricingProvider>
-        <div className="min-h-screen bg-gray-50">
-          <Toaster />
-          {renderScreen(DashboardScreen, {
-            onFindRide: handleFindRide,
-            onOpenDriversApp: handleOpenDriversApp,
-            onSwitchAccount: handleSwitchAccount,
-            onOpenAdmin: () => updateAppState({ currentScreen: 'admin-dashboard' }),
-            userEmail
-          })}
-        </div>
-      </PricingProvider>
-    </AuthProvider>
+    <div className="min-h-screen bg-gray-50">
+      <Toaster />
+      {renderScreen(DashboardScreen, {
+        onFindRide: handleFindRide,
+        onOpenDriversApp: handleOpenDriversApp,
+        onSwitchAccount: handleSwitchAccount,
+        onLogout: handleLogout,
+        onOpenAdmin: () => updateAppState({ currentScreen: 'admin-dashboard' }),
+        userEmail,
+        isLoggedIn
+      })}
+    </div>
   );
 }

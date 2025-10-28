@@ -15,10 +15,16 @@ class RealTimeService {
     const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
     console.log('🚀 Connecting to WebSocket server:', serverUrl);
 
+    // Disconnect existing socket if any
+    if (this.socket) {
+      this.socket.disconnect();
+    }
+
+    // Create new connection with explicit configuration
     this.socket = io(serverUrl, {
-      transports: ['websocket', 'polling'],
-      timeout: 20000,
-      forceNew: true
+      transports: ['polling'],
+      upgrade: true,
+      rememberUpgrade: false,
     });
 
     this.socket.on('connect', () => {
@@ -26,14 +32,25 @@ class RealTimeService {
       console.log('✅ WebSocket connected:', this.socket?.id);
     });
 
-    this.socket.on('disconnect', () => {
+    this.socket.on('disconnect', (reason) => {
       this.isConnected = false;
-      console.log('❌ WebSocket disconnected');
+      console.log('❌ WebSocket disconnected:', reason);
     });
 
     this.socket.on('connect_error', (error) => {
       console.error('❌ WebSocket connection error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        description: error.description,
+        context: error.context,
+        type: error.type,
+        stack: error.stack
+      });
       this.isConnected = false;
+    });
+
+    this.socket.on('error', (error) => {
+      console.error('❌ WebSocket error:', error);
     });
   }
 
@@ -68,15 +85,48 @@ class RealTimeService {
     console.log('🚗 Left driver room:', driverId);
   }
 
+  // Ensure WebSocket is connected
+  private ensureConnected(): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (this.socket && this.isConnected) {
+        resolve(true);
+        return;
+      }
+
+      console.log('🔄 Ensuring WebSocket connection...');
+      this.connect();
+
+      // Wait for connection with timeout
+      const checkConnection = () => {
+        if (this.socket && this.isConnected) {
+          resolve(true);
+        } else {
+          setTimeout(checkConnection, 100);
+        }
+      };
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        resolve(false);
+      }, 10000);
+
+      checkConnection();
+    });
+  }
+
   // Join ride room for passenger updates
-  joinRideRoom(rideId: string): void {
-    if (!this.socket || !this.isConnected) {
-      console.error('❌ WebSocket not connected');
+  async joinRideRoom(rideId: string): Promise<void> {
+    const connected = await this.ensureConnected();
+    
+    if (!connected) {
+      console.error('❌ Failed to connect WebSocket after timeout');
       return;
     }
 
-    this.socket.emit('join-ride', rideId);
-    console.log('🚖 Joined ride room:', rideId);
+    if (this.socket) {
+      this.socket.emit('join-ride', rideId);
+      console.log('🚖 Joined ride room:', rideId);
+    }
   }
 
   // Leave ride room

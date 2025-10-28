@@ -19,7 +19,7 @@ class GeocodingService {
   private geocoder: google.maps.Geocoder | null = null;
   private placesService: google.maps.places.PlacesService | null = null;
   private autocompleteService: google.maps.places.AutocompleteService | null = null;
-  private isInitialized = false;
+  public isInitialized = false;
 
   // Initialize Google Maps services
   init(): Promise<void> {
@@ -105,8 +105,14 @@ class GeocodingService {
               placeId: results[0].place_id
             });
           } else {
-            console.warn('Reverse geocoding failed:', status);
-            resolve(null);
+            console.warn('⚠️ Reverse geocoding failed:', status);
+            // Return a basic result if geocoding fails
+            resolve({
+              lat: lat,
+              lng: lng,
+              formattedAddress: `Location ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+              placeId: undefined
+            });
           }
         }
       );
@@ -124,6 +130,8 @@ class GeocodingService {
     }
 
     return new Promise((resolve, reject) => {
+      console.log('🔍 Calling Google Places API with query:', query);
+      
       this.autocompleteService!.getPlacePredictions(
         {
           input: query,
@@ -131,6 +139,8 @@ class GeocodingService {
           componentRestrictions: { country: 'in' } // Restrict to India
         },
         (predictions, status) => {
+          console.log('📍 Google Places API response:', { status, predictions });
+          
           if (status === 'OK' && predictions) {
             const suggestions: PlaceSuggestion[] = predictions.map(prediction => ({
               placeId: prediction.place_id,
@@ -138,9 +148,10 @@ class GeocodingService {
               mainText: prediction.structured_formatting.main_text,
               secondaryText: prediction.structured_formatting.secondary_text
             }));
+            console.log('✅ Processed suggestions:', suggestions);
             resolve(suggestions);
           } else {
-            console.warn('Place suggestions failed:', status);
+            console.warn('⚠️ Place suggestions failed:', status);
             resolve([]);
           }
         }
@@ -231,7 +242,13 @@ declare global {
 
 // Initialize when Google Maps loads
 window.initGoogleMaps = () => {
+  console.log('🗺️ Google Maps API loaded successfully');
+  
+  // Initialize geocoding service
   geocodingService.init().catch(console.error);
+  
+  // Trigger custom event for components to know Google Maps is ready
+  window.dispatchEvent(new CustomEvent('googleMapsLoaded'));
 };
 
 export default geocodingService;
