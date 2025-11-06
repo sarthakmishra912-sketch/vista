@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google Places Autocomplete Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .input-container {
+            margin: 20px 0;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #4285f4;
+        }
+        #log {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4285f4;
+            padding-left: 10px;
+        }
+        .error {
+            border-left-color: #f44336;
+            color: #f44336;
+        }
+        .success {
+            border-left-color: #4caf50;
+            color: #4caf50;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🗺️ Google Places Autocomplete Test</h1>
+    
+    <div id="status" class="status loading">⏳ Loading Google Maps API...</div>
+    
+    <div class="input-container">
+        <label for="autocomplete"><strong>Search for a place:</strong></label>
+        <input id="autocomplete" type="text" placeholder="Start typing an address (e.g., Mumbai, Delhi)..." />
+    </div>
+    
+    <div class="input-container">
+        <label for="manual-search"><strong>Manual Search Test:</strong></label>
+        <input id="manual-search" type="text" placeholder="Type to test manual API calls..." />
+    </div>
+    
+    <div id="log">
+        <div class="log-entry">Console logs will appear here...</div>
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAaTuhvB_WuJosSUXfgMyhMxAD-6sEmfVc&libraries=places&callback=initMap" async defer></script>
+    
+    <script>
+        const logContainer = document.getElementById('log');
+        const statusDiv = document.getElementById('status');
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            console.log(message);
+        }
+        
+        function setStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        let autocompleteService;
+        let placesService;
+        
+        function initMap() {
+            log('🎉 Google Maps API loaded successfully!', 'success');
+            
+            try {
+                // Test 1: Initialize Autocomplete Widget
+                log('Test 1: Initializing Autocomplete Widget...');
+                const input = document.getElementById('autocomplete');
+                const autocomplete = new google.maps.places.Autocomplete(input, {
+                    types: ['geocode', 'establishment'],
+                    componentRestrictions: { country: 'in' }
+                });
+                
+                autocomplete.addListener('place_changed', function() {
+                    const place = autocomplete.getPlace();
+                    if (place.geometry) {
+                        log(`✅ Place selected: ${place.formatted_address}`, 'success');
+                        log(`   Coordinates: ${place.geometry.location.lat()}, ${place.geometry.location.lng()}`, 'success');
+                    } else {
+                        log('⚠️ No geometry data for selected place', 'error');
+                    }
+                });
+                
+                log('✅ Autocomplete Widget initialized successfully', 'success');
+                
+                // Test 2: Initialize AutocompleteService (for manual API calls)
+                log('Test 2: Initializing AutocompleteService...');
+                autocompleteService = new google.maps.places.AutocompleteService();
+                log('✅ AutocompleteService initialized', 'success');
+                
+                // Test 3: Initialize PlacesService
+                log('Test 3: Initializing PlacesService...');
+                const dummyDiv = document.createElement('div');
+                placesService = new google.maps.places.PlacesService(dummyDiv);
+                log('✅ PlacesService initialized', 'success');
+                
+                setStatus('✅ All systems ready! Try typing in the input fields above.', 'ready');
+                
+                // Setup manual search listener
+                const manualInput = document.getElementById('manual-search');
+                let timeout;
+                manualInput.addEventListener('input', function(e) {
+                    clearTimeout(timeout);
+                    const query = e.target.value;
+                    
+                    if (query.length < 2) {
+                        return;
+                    }
+                    
+                    timeout = setTimeout(() => {
+                        log(`🔍 Manual API call with query: "${query}"`);
+                        
+                        autocompleteService.getPlacePredictions({
+                            input: query,
+                            types: ['geocode', 'establishment'],
+                            componentRestrictions: { country: 'in' }
+                        }, function(predictions, status) {
+                            log(`📡 API Response Status: ${status}`);
+                            
+                            if (status === google.maps.places.PlacesServiceStatus.OK) {
+                                log(`✅ Found ${predictions.length} suggestions:`, 'success');
+                                predictions.slice(0, 5).forEach((pred, i) => {
+                                    log(`   ${i + 1}. ${pred.description}`, 'success');
+                                });
+                            } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+                                log('⚠️ No results found', 'error');
+                            } else if (status === google.maps.places.PlacesServiceStatus.OVER_QUERY_LIMIT) {
+                                log('❌ OVER_QUERY_LIMIT - API quota exceeded or billing not enabled!', 'error');
+                            } else if (status === google.maps.places.PlacesServiceStatus.REQUEST_DENIED) {
+                                log('❌ REQUEST_DENIED - Check API key restrictions!', 'error');
+                            } else {
+                                log(`❌ Error: ${status}`, 'error');
+                            }
+                        });
+                    }, 500);
+                });
+                
+            } catch (error) {
+                log(`❌ Initialization error: ${error.message}`, 'error');
+                setStatus('❌ Initialization failed! Check console for details.', 'error');
+            }
+        }
+        
+        // Handle API load errors
+        window.gm_authFailure = function() {
+            log('❌ Google Maps authentication failed! Check your API key.', 'error');
+            setStatus('❌ API Authentication Failed!', 'error');
+        };
+    </script>
+</body>
+</html>
+
+

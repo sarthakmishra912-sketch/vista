@@ -121,7 +121,9 @@ const KNOWN_ADDRESSES = {
 };
 
 function LocationDropdown({ addresses, onSelect, isVisible, searchTerm = "" }) {
-  if (!isVisible) return null;
+  if (!isVisible) {
+    return null;
+  }
   
   // For Google Places suggestions, we don't need to filter since they're already filtered
   const displayAddresses = addresses.slice(0, 8);
@@ -246,7 +248,7 @@ function LocationInputs({
   }, []);
   
   return (
-    <div className="absolute bg-[#ffffff] box-border content-stretch flex gap-4 items-end justify-start left-[20px] right-[20px] px-[30px] py-[25px] rounded-[25px] top-[20px] shadow-lg z-30 location-input-container">
+    <div className="absolute bg-[#ffffff] box-border content-stretch flex gap-4 items-end justify-start left-[20px] right-[20px] px-[30px] py-[25px] rounded-[25px] top-[20px] shadow-lg z-50 location-input-container">
       <div className="content-stretch flex flex-col gap-4 items-start justify-start relative shrink-0 w-full">
 
         
@@ -309,20 +311,19 @@ function LocationInputs({
           </div>
           <div className="relative flex-1">
             <input
+              id="destination-autocomplete-input"
               type="text"
               value={dropLocation}
               onChange={(e) => onDropChange(e.target.value)}
               onFocus={handleDropFocus}
-              placeholder="Enter destination"
+              placeholder="Where to?"
+              autoComplete="off"
               className="font-['Poppins:Regular',_sans-serif] text-[#656565] text-[18px] bg-transparent border-none outline-none w-full placeholder:text-[#656565]"
             />
             {isLocationChanging && activeInput === 'drop' && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                 <div className="w-4 h-4 border-2 border-[#CF923D] border-t-transparent rounded-full animate-spin"></div>
               </div>
-            )}
-            {isLocationChanging && activeInput === 'drop' && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.5s_ease-in-out_infinite] rounded"></div>
             )}
             <LocationDropdown
               addresses={suggestedLocations.length > 0 ? suggestedLocations : ENHANCED_DUMMY_ADDRESSES}
@@ -596,7 +597,7 @@ function PaymentSlider({ onPay, isDisabled = false, customText = "Slide to book 
   }, [isDragging, dragPosition, sliderWidth]);
   
   return (
-    <div className={`absolute bottom-0 left-0 right-0 h-[160px] shadow-[0px_7px_35.3px_0px_rgba(0,0,0,0.15)] ${
+    <div className={`absolute bottom-0 left-0 right-0 h-[160px] shadow-[0px_7px_35.3px_0px_rgba(0,0,0,0.15)] z-50 ${
       isDisabled ? 'bg-gray-100' : 'bg-[#ffffff]'
     }`}>
       <div className="relative h-full flex items-center justify-center px-8">
@@ -1147,127 +1148,105 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
   const [scrollY, setScrollY] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Initialize Google Maps and detect current location
+  // TEST: Simple useEffect
+  console.log('📍📍📍 About to declare SIMPLE TEST useEffect');
   useEffect(() => {
-    const initMap = async () => {
-      if (!mapRef.current || typeof google === 'undefined') return;
+    console.log('🎯🎯🎯 SIMPLE TEST useEffect FIRED!!!');
+  }, []);
+  
+  // Initialize Google Maps and detect current location  
+  console.log('📍📍📍 About to declare map useEffect');
+  
+  useEffect(() => {
+    console.log('🚀🚀🚀 Map initialization useEffect FIRED!');
+    
+    // Simplified initialization - just log and try to create map
+    console.log('mapRef.current:', mapRef.current);
+    console.log('typeof google:', typeof google);
+    
+    if (!mapRef.current) {
+      console.log('❌ No map container');
+      return;
+    }
+    
+    if (typeof google === 'undefined') {
+      console.log('❌ Google not loaded');
+      return;
+    }
+    
+    if (googleMapRef.current) {
+      console.log('✅ Map already exists');
+      return;
+    }
 
-      console.log('🗺️ Initializing Google Maps...');
-
-      // Try to get current location first
-      let mapCenter = { lat: 25.4358, lng: 81.8463 }; // Prayagraj as fallback
-      let currentLocationDetected = false;
-      
-      try {
-        console.log('📍 Detecting current location...');
-        const currentLocation = await geocodingService.getCurrentLocation();
-        if (currentLocation) {
-          mapCenter = { lat: currentLocation.lat, lng: currentLocation.lng };
-          setPickupLocation(currentLocation.formattedAddress);
-          setPickupCoords(mapCenter);
-          currentLocationDetected = true;
-          console.log('✅ Current location detected:', currentLocation.formattedAddress);
-        }
-      } catch (error) {
-        console.log('⚠️ Could not detect current location, using fallback');
-      }
-
-      // Initialize map
-      const map = new (window as any).google.maps.Map(mapRef.current, {
+    console.log('🗺️ Creating Google Map...');
+    
+    const mapCenter = { lat: 25.4358, lng: 81.8463 };
+    
+    try {
+      const map = new google.maps.Map(mapRef.current, {
         center: mapCenter,
-        zoom: currentLocationDetected ? 15 : 13, // Zoom in more if current location detected
-        disableDefaultUI: false,
-        zoomControl: true,
-        mapTypeControl: false,
-        scaleControl: true,
-        streetViewControl: false,
-        rotateControl: false,
-        fullscreenControl: true,
-        styles: [
-          {
-            featureType: 'poi',
-            elementType: 'labels',
-            stylers: [{ visibility: 'off' }],
-          },
-        ],
+        zoom: 13,
       });
-
+      
       googleMapRef.current = map;
+      console.log('✅✅✅ MAP CREATED SUCCESSFULLY!!!', map);
+    } catch (error) {
+      console.error('❌❌❌ Map creation error:', error);
+    }
+  }, []);
 
-      // Add pickup marker (current location)
-      const pickupMarker = new (window as any).google.maps.Marker({
-        position: mapCenter,
+  // Update map markers and route when destination changes
+  useEffect(() => {
+    const map = googleMapRef.current;
+    if (!map || !pickupCoords) return;
+
+    console.log('🔄 Updating map with destination:', dropLocation);
+
+    // Remove existing destination marker and route
+    if (dropMarkerRef.current) {
+      dropMarkerRef.current.setMap(null);
+      dropMarkerRef.current = null;
+    }
+    if (routePolylineRef.current) {
+      routePolylineRef.current.setMap(null);
+      routePolylineRef.current = null;
+    }
+
+    // Add new destination marker if destination exists
+    if (dropLocation && dropLocation.trim() !== '' && dropCoords) {
+      const dropMarker = new (window as any).google.maps.Marker({
+        position: dropCoords,
         map: map,
-        title: currentLocationDetected ? 'Your Location' : 'Default Location',
+        title: 'Destination',
         icon: {
           path: (window as any).google.maps.SymbolPath.CIRCLE,
           scale: 12,
-          fillColor: '#CF923D',
+          fillColor: '#000000',
           fillOpacity: 1,
           strokeColor: '#FFFFFF',
           strokeWeight: 3,
         },
       });
 
-      pickupMarkerRef.current = pickupMarker;
+      dropMarkerRef.current = dropMarker;
 
-      // Add destination marker if destination is set
-      if (dropLocation && dropLocation.trim() !== '') {
-        const dropMarker = new (window as any).google.maps.Marker({
-          position: dropCoords || mapCenter,
-          map: map,
-          title: 'Destination',
-          icon: {
-            path: (window as any).google.maps.SymbolPath.CIRCLE,
-            scale: 12,
-            fillColor: '#000000',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 3,
-          },
-        });
+      // Draw route
+      drawRoute(map, pickupCoords, dropCoords);
 
-        dropMarkerRef.current = dropMarker;
-
-        // Draw route between pickup and destination
-        drawRoute(map, mapCenter, dropCoords || mapCenter);
-
-        // Fit map to show both markers with proper bounds and padding
-        const bounds = new (window as any).google.maps.LatLngBounds();
-        bounds.extend(mapCenter);
-        bounds.extend(dropCoords || mapCenter);
-        
-        // Add padding to bounds for better view
-        const padding = 50; // pixels
-        map.fitBounds(bounds, { top: padding, right: padding, bottom: padding, left: padding });
-        
-        console.log('✅ Google Maps initialized with both markers');
-      } else {
-        // Center map on pickup location only
-        map.setCenter(mapCenter);
-        map.setZoom(currentLocationDetected ? 15 : 13);
-        console.log('✅ Google Maps initialized with current location only');
-      }
-    };
-
-    // Wait for Google Maps to load
-    if (typeof google !== 'undefined') {
-      initMap();
+      // Fit map to show both markers
+      const bounds = new (window as any).google.maps.LatLngBounds();
+      bounds.extend(pickupCoords);
+      bounds.extend(dropCoords);
+      map.fitBounds(bounds, { top: 100, right: 50, bottom: 400, left: 50 }); // Extra bottom padding for vehicle sheet
+      
+      console.log('✅ Map updated with destination');
     } else {
-      // Listen for Google Maps loaded event
-      const handleGoogleMapsLoaded = () => {
-        console.log('🗺️ Google Maps loaded event received');
-        initMap();
-      };
-
-      window.addEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
-
-      // Cleanup
-      return () => {
-        window.removeEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
-      };
+      // Center on pickup only
+      map.setCenter(pickupCoords);
+      map.setZoom(15);
     }
-  }, [dropLocation]); // Re-initialize when destination changes
+  }, [dropLocation, dropCoords, pickupCoords]);
 
   // Function to draw route between two points
   const drawRoute = (map: any, start: any, end: any) => {
@@ -1406,6 +1385,122 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
   const [destinationSelected, setDestinationSelected] = useState(false);
   const [showRescueScreen, setShowRescueScreen] = useState(false);
 
+  // Google Places Autocomplete ref
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+
+  // Initialize Google Places Autocomplete on destination input
+  useEffect(() => {
+    const initAutocomplete = () => {
+      const input = document.getElementById('destination-autocomplete-input') as HTMLInputElement;
+      
+      if (!input || typeof google === 'undefined' || !google.maps || !google.maps.places) {
+        console.log('⏳ Waiting for Google Maps API...');
+        return;
+      }
+
+      if (autocompleteRef.current) {
+        console.log('✅ Autocomplete already initialized');
+        return;
+      }
+
+      try {
+        console.log('🔧 Initializing Google Places Autocomplete on destination input...');
+        
+        const autocomplete = new google.maps.places.Autocomplete(input, {
+          types: ['geocode', 'establishment'],
+          componentRestrictions: { country: 'in' }
+        });
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          console.log('📍 Place selected from autocomplete:', place);
+          
+          if (place.geometry && place.formatted_address) {
+            setDropLocation(place.formatted_address);
+            setDropCoords({
+              lat: place.geometry.location!.lat(),
+              lng: place.geometry.location!.lng()
+            });
+            setDestinationSelected(true);
+            setShowSuggestions(false);
+            console.log('✅ Destination set:', place.formatted_address);
+          }
+        });
+
+        autocompleteRef.current = autocomplete;
+        console.log('✅ Google Places Autocomplete initialized successfully!');
+      } catch (error) {
+        console.error('❌ Error initializing autocomplete:', error);
+      }
+    };
+
+    // Try to initialize immediately
+    initAutocomplete();
+
+    // Also listen for Google Maps loaded event
+    const handleGoogleMapsLoaded = () => {
+      console.log('🗺️ Google Maps loaded event received for autocomplete');
+      initAutocomplete();
+    };
+
+    window.addEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+
+    return () => {
+      window.removeEventListener('googleMapsLoaded', handleGoogleMapsLoaded);
+    };
+  }, []);
+
+  // INITIALIZE GOOGLE MAP - Simple and direct
+  useEffect(() => {
+    console.log('🗺️🗺️🗺️ MAP INIT useEffect RUNNING!');
+    
+    if (!mapRef.current) {
+      console.log('No map container yet');
+      return;
+    }
+    
+    if (typeof google === 'undefined') {
+      console.log('Google Maps not loaded yet');
+      return;
+    }
+    
+    if (googleMapRef.current) {
+      console.log('Map already created');
+      return;
+    }
+    
+    console.log('Creating map NOW...');
+    
+    const map = new google.maps.Map(mapRef.current, {
+      center: { lat: 25.4358, lng: 81.8463 },
+      zoom: 13,
+      disableDefaultUI: false,
+      zoomControl: true,
+      mapTypeControl: false,
+      fullscreenControl: true,
+    });
+    
+    googleMapRef.current = map;
+    
+    // Add pickup marker
+    const pickupMarker = new google.maps.Marker({
+      position: { lat: 25.4358, lng: 81.8463 },
+      map: map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 12,
+        fillColor: '#CF923D',
+        fillOpacity: 1,
+        strokeColor: '#FFFFFF',
+        strokeWeight: 3,
+      },
+    });
+    
+    pickupMarkerRef.current = pickupMarker;
+    
+    console.log('✅✅✅ MAP CREATED!', map);
+  }, []);
+
   // Geocoding function using Google Maps API
   const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
     try {
@@ -1463,7 +1558,7 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
     }
   };
 
-  // Google Places API address search (now with billing enabled)
+  // Google Places API address search (backup for manual typing)
   const searchLocations = async (query: string) => {
     if (query.length < 2) {
       setSuggestedLocations([]);
@@ -1471,46 +1566,38 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
       return;
     }
     
-    console.log('🔍 Searching for locations:', query);
+    console.log('🔍 Searching locations:', query);
     
     try {
       // Ensure geocodingService is initialized
       if (!geocodingService.isInitialized) {
-        console.log('🔄 Initializing geocodingService...');
         await geocodingService.init();
       }
       
       // Use Google Places API
-      console.log('🔄 Using Google Places API...');
       const suggestions = await geocodingService.getPlaceSuggestions(query);
       
       if (suggestions && suggestions.length > 0) {
         const displaySuggestions = suggestions.map(suggestion => suggestion.description);
-        console.log('✅ Google Places suggestions:', displaySuggestions);
+        console.log('✅ Found', displaySuggestions.length, 'suggestions');
         setSuggestedLocations(displaySuggestions);
         setShowSuggestions(true);
       } else {
-        console.log('⚠️ No Google Places suggestions found');
         // Fallback to enhanced local search
-        const filtered = ENHANCED_DUMMY_ADDRESSES.filter(addr => {
-          const searchTerm = query.toLowerCase();
-          const address = addr.toLowerCase();
-          return address.includes(searchTerm);
-        }).slice(0, 8);
+        const filtered = ENHANCED_DUMMY_ADDRESSES.filter(addr => 
+          addr.toLowerCase().includes(query.toLowerCase())
+        ).slice(0, 8);
         
         setSuggestedLocations(filtered);
         setShowSuggestions(true);
       }
     } catch (error) {
-      console.error('❌ Google Places API error:', error);
+      console.error('❌ Search error:', error);
       
       // Fallback to enhanced local search
-      console.log('🔄 Using fallback local search...');
-      const filtered = ENHANCED_DUMMY_ADDRESSES.filter(addr => {
-        const searchTerm = query.toLowerCase();
-        const address = addr.toLowerCase();
-        return address.includes(searchTerm);
-      }).slice(0, 8);
+      const filtered = ENHANCED_DUMMY_ADDRESSES.filter(addr =>
+        addr.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 8);
       
       setSuggestedLocations(filtered);
       setShowSuggestions(true);
@@ -1547,24 +1634,31 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
 
   // Handle location change with debouncing
   const handleLocationChange = (type: 'pickup' | 'drop', value: string) => {
+    console.log('🔄 handleLocationChange called:', { type, value, valueLength: value.length });
+    
     if (type === 'pickup') {
       setPickupLocation(value);
+      console.log('✅ Set pickup location:', value);
     } else {
       setDropLocation(value);
       // Reset destination selected when user starts typing
       setDestinationSelected(false);
+      console.log('✅ Set drop location:', value);
     }
     
     setActiveInput(type);
     setIsLocationChanging(true);
+    console.log('🔄 Starting debounced search in 500ms for:', value);
     
     // Clear existing timeout
     if (locationChangeTimeout) {
       clearTimeout(locationChangeTimeout);
+      console.log('🔄 Cleared existing timeout');
     }
     
     // Set new timeout for debounced search
     const timeout = setTimeout(async () => {
+      console.log('⏰ Debounce timeout fired, calling searchLocations');
       await searchLocations(value);
       setIsLocationChanging(false);
     }, 500);
@@ -1846,13 +1940,15 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
   }
 
   return (
-    <div className="relative size-full min-h-screen bg-white">
+    <div className="relative size-full min-h-screen bg-white overflow-hidden">
       {/* Interactive Google Maps */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 z-0 bg-gray-200" style={{ height: '100vh', width: '100%' }}>
         <div 
           ref={mapRef}
-          className="w-full h-[70%]"
-          style={{ minHeight: '400px' }}
+          data-map-container="true"
+          id="google-map-container"
+          className="w-full h-full bg-blue-50"
+          style={{ height: '100%', width: '100%' }}
         />
       </div>
 
@@ -1875,7 +1971,7 @@ export default function RideBookingScreen({ onRideBooked, onBack }) {
       {/* Vehicle Selection Card */}
       <div 
         ref={panelRef}
-        className="absolute bg-[#ffffff] left-0 right-0 rounded-t-[30px] px-6 overflow-y-scroll scrollbar-hide transition-all duration-300 ease-out shadow-[0px_-4px_20px_rgba(0,0,0,0.15)]"
+        className="absolute bg-[#ffffff] left-0 right-0 rounded-t-[30px] px-6 overflow-y-scroll scrollbar-hide transition-all duration-300 ease-out shadow-[0px_-4px_20px_rgba(0,0,0,0.15)] z-40"
         style={getPanelStyle()}
       >
         <div className="space-y-6">
