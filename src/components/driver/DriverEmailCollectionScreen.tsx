@@ -5,13 +5,15 @@ import { toast } from "sonner";
 interface DriverEmailCollectionScreenProps {
   onContinue: (data: { firstName: string; lastName: string; email: string }) => void;
   onBack: () => void;
+  onCancel?: () => void;
   onSupport: () => void;
   userEmail?: string | null;
 }
 
 export default function DriverEmailCollectionScreen({ 
   onContinue, 
-  onBack, 
+  onBack,
+  onCancel,
   onSupport,
   userEmail 
 }: DriverEmailCollectionScreenProps) {
@@ -340,6 +342,30 @@ export default function DriverEmailCollectionScreen({
               </div>
             </button>
           </div>
+
+          {/* Cancel Button */}
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="w-full box-border flex gap-2 h-[60px] items-center justify-center px-6 py-4 relative rounded-[40px] border-2"
+              style={{ 
+                backgroundColor: 'transparent',
+                borderColor: '#a89c8a',
+                color: '#353535'
+              }}
+            >
+              <div 
+                className="flex flex-col justify-center leading-[0] not-italic relative shrink-0 text-[18px] sm:text-[20px] text-center text-nowrap"
+                style={{ 
+                  fontFamily: 'Poppins, sans-serif',
+                  fontWeight: '500',
+                  color: '#353535'
+                }}
+              >
+                <p className="leading-[normal] whitespace-pre">Cancel</p>
+              </div>
+            </button>
+          )}
 
           {/* Back button - positioned at top left above header */}
           <button

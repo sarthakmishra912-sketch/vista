@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 interface DriverLanguageSelectionScreenProps {
   onContinue: (selectedLanguage: string) => void;
   onBack: () => void;
+  onCancel?: () => void;
   onSupport: () => void;
   userEmail?: string | null;
 }
@@ -20,7 +21,8 @@ const languages = [
 
 export default function DriverLanguageSelectionScreen({ 
   onContinue, 
-  onBack, 
+  onBack,
+  onCancel,
   onSupport,
   userEmail 
 }: DriverLanguageSelectionScreenProps) {
@@ -254,6 +256,34 @@ export default function DriverLanguageSelectionScreen({
                 </div>
               </div>
             </button>
+            
+            {/* Cancel Button */}
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                className="relative rounded-[30px] shrink-0 w-full border-2 transition-opacity hover:opacity-80"
+                style={{ 
+                  backgroundColor: 'transparent',
+                  borderColor: '#a89c8a',
+                  color: '#353535'
+                }}
+              >
+                <div className="flex flex-row items-center relative size-full">
+                  <div className="box-border flex items-center justify-center py-4 px-6 relative w-full">
+                    <div 
+                      className="flex flex-col justify-center leading-[0] not-italic relative shrink-0 text-[18px] sm:text-[20px] text-center text-nowrap tracking-[-0.36px]"
+                      style={{ 
+                        fontFamily: 'Poppins, sans-serif',
+                        fontWeight: '500',
+                        color: '#353535'
+                      }}
+                    >
+                      <p className="leading-[normal] whitespace-pre">Cancel</p>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>

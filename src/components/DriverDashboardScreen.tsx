@@ -53,8 +53,10 @@ export default function DriverDashboardScreen({
   const [nearbyLocation, setNearbyLocation] = useState<string>('Peer Baba Dargah');
   const [showMenu, setShowMenu] = useState(false);
 
-  // Verification status
-  const [canStartRides, setCanStartRides] = useState(true);
+  // Verification status - default to false until verified by admin
+  const [canStartRides, setCanStartRides] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string>('pending');
 
   // Initialize Google Map
   useEffect(() => {
@@ -143,6 +145,40 @@ export default function DriverDashboardScreen({
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch onboarding status from API
+  const fetchOnboardingStatus = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        console.warn('⚠️ No access token found');
+        return null;
+      }
+
+      const response = await fetch('http://localhost:5001/api/driver/onboarding/status', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch onboarding status: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        return data.data;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error fetching onboarding status:', error);
+      return null;
+    }
+  };
+
   // Load driver data on component mount
   useEffect(() => {
     const loadDriverData = async () => {
@@ -150,22 +186,38 @@ export default function DriverDashboardScreen({
         setLoading(true);
         console.log('🚗 Loading driver dashboard data...');
         
-        const [profileData, earningsData] = await Promise.all([
+        // Fetch driver profile and onboarding status
+        const [profileData, earningsData, onboardingStatus] = await Promise.all([
           driverApi.getDriverProfile(),
-          driverApi.getDriverEarnings()
+          driverApi.getDriverEarnings(),
+          fetchOnboardingStatus()
         ]);
         
         setDriverProfile(profileData);
         setEarnings(earningsData);
         setOnlineStatus(profileData.is_online || false);
         
-        if (profileData.onboarding) {
-          setCanStartRides(profileData.onboarding.can_start_rides);
+        // Set verification status from onboarding API response
+        if (onboardingStatus) {
+          setCanStartRides(onboardingStatus.can_start_rides || false);
+          setIsVerified(onboardingStatus.is_verified || false);
+          setVerificationStatus(onboardingStatus.onboarding_status || 'pending');
+          console.log('📋 Driver verification status:', {
+            can_start_rides: onboardingStatus.can_start_rides,
+            is_verified: onboardingStatus.is_verified,
+            status: onboardingStatus.onboarding_status
+          });
+        } else if (profileData.onboarding) {
+          // Fallback to profile data if onboarding status API fails
+          setCanStartRides(profileData.onboarding.can_start_rides || false);
+          setIsVerified(profileData.onboarding.is_verified || false);
+          setVerificationStatus(profileData.onboarding.status || 'pending');
         }
         
         console.log('🚗 Driver dashboard data loaded successfully');
       } catch (error) {
         console.error('🚗 Error loading driver dashboard data:', error);
+        // On error, keep canStartRides as false (default)
       } finally {
         setLoading(false);
       }
@@ -173,6 +225,29 @@ export default function DriverDashboardScreen({
 
     loadDriverData();
   }, []);
+
+  // Poll for verification status updates every 30 seconds (only if not verified)
+  useEffect(() => {
+    if (canStartRides) {
+      return; // Stop polling if already verified
+    }
+
+    const statusCheckInterval = setInterval(async () => {
+      console.log('🔄 Checking verification status...');
+      const status = await fetchOnboardingStatus();
+      if (status) {
+        setCanStartRides(status.can_start_rides || false);
+        setIsVerified(status.is_verified || false);
+        setVerificationStatus(status.onboarding_status || 'pending');
+        
+        if (status.can_start_rides) {
+          console.log('✅ Driver verification approved! Can now go online.');
+        }
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(statusCheckInterval);
+  }, [canStartRides]);
 
   // WebSocket connection and ride request handling
   useEffect(() => {
@@ -439,43 +514,81 @@ export default function DriverDashboardScreen({
         </div>
       </div>
 
-      {/* Go Online/Offline Button */}
-      <div style={{
-        position: 'absolute',
-        bottom: '220px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 10,
-      }}>
-        <Button
-          onClick={onlineStatus ? handleGoOffline : handleGoOnline}
-          disabled={loading || !canStartRides}
-          style={{
-            backgroundColor: onlineStatus ? RAAHI_COLORS.gray : RAAHI_COLORS.blue,
-            color: RAAHI_COLORS.white,
-            border: `4px solid ${RAAHI_COLORS.white}`,
-            borderRadius: '50px',
-            padding: '16px 48px',
-            fontSize: '24px',
-            fontWeight: 'bold',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-            cursor: canStartRides ? 'pointer' : 'not-allowed',
-            opacity: loading || !canStartRides ? 0.7 : 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-          }}
-        >
-          {onlineStatus ? 'Go Offline' : 'Go Online'}
-          {!onlineStatus && (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      {/* Go Online/Offline Button - Only show if verified */}
+      {canStartRides && (
+        <div style={{
+          position: 'absolute',
+          bottom: '220px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+        }}>
+          <Button
+            onClick={onlineStatus ? handleGoOffline : handleGoOnline}
+            disabled={loading}
+            style={{
+              backgroundColor: onlineStatus ? RAAHI_COLORS.gray : RAAHI_COLORS.blue,
+              color: RAAHI_COLORS.white,
+              border: `4px solid ${RAAHI_COLORS.white}`,
+              borderRadius: '50px',
+              padding: '16px 48px',
+              fontSize: '24px',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            {onlineStatus ? 'Go Offline' : 'Go Online'}
+            {!onlineStatus && (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* Verification Pending Message - Show when not verified */}
+      {!canStartRides && (
+        <div style={{
+          position: 'absolute',
+          bottom: '220px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+          backgroundColor: RAAHI_COLORS.white,
+          border: `2px solid ${RAAHI_COLORS.primary}`,
+          borderRadius: '50px',
+          padding: '20px 48px',
+          fontSize: '18px',
+          fontWeight: '600',
+          color: RAAHI_COLORS.dark,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          textAlign: 'center',
+          maxWidth: '90%',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={RAAHI_COLORS.primary} strokeWidth="2">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="12" y1="8" x2="12" y2="12"></line>
               <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
-          )}
-        </Button>
-      </div>
+            <span>
+              {verificationStatus === 'verification_pending' 
+                ? 'Documents under review. Please wait for admin approval.'
+                : verificationStatus === 'documents_required'
+                ? 'Please complete document upload and wait for verification.'
+                : 'Your documents are being verified. You\'ll be able to go online once approved.'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Sheet */}
       <div style={{
@@ -520,12 +633,22 @@ export default function DriverDashboardScreen({
               Looking for ride requests...
             </p>
           )}
-          {!onlineStatus && (
+          {!onlineStatus && canStartRides && (
             <p style={{
               fontSize: '14px',
               color: RAAHI_COLORS.gray,
             }}>
               Tap "Go Online" to start receiving ride requests
+            </p>
+          )}
+          {!canStartRides && (
+            <p style={{
+              fontSize: '14px',
+              color: RAAHI_COLORS.gray,
+            }}>
+              {verificationStatus === 'verification_pending' 
+                ? 'Waiting for admin to verify your documents...'
+                : 'Complete document verification to start receiving rides'}
             </p>
           )}
         </div>
@@ -551,8 +674,9 @@ export default function DriverDashboardScreen({
             <span style={{
               fontSize: '14px',
               color: RAAHI_COLORS.gray,
+              fontWeight: '500',
             }}>
-              Account
+              {driverProfile?.name || 'Driver'}
             </span>
           </div>
           

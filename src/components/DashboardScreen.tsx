@@ -187,12 +187,8 @@ export default function DashboardScreen({ onFindRide, onOpenDriversApp, onSwitch
       <div 
         className="absolute font-medium leading-[0] not-italic text-[#606060] text-center bottom-[40px] translate-x-[-50%] w-full max-w-[426px] px-4 cursor-pointer select-none" 
         style={{ left: "50%" }}
-        onClick={(e) => {
-          const clicks = parseInt(e.currentTarget.dataset.clicks || '0') + 1;
-          e.currentTarget.dataset.clicks = clicks.toString();
-          if (clicks >= 5 && onOpenAdmin) {
-            e.currentTarget.dataset.clicks = '0';
-            console.log('Admin access unlocked!');
+        onClick={() => {
+          if (onOpenAdmin) {
             onOpenAdmin();
           }
         }}

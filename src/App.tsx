@@ -34,9 +34,7 @@ const DriverEmailCollectionScreen = lazy(() => import('./components/driver/Drive
 const DriverLanguageSelectionScreen = lazy(() => import('./components/driver/DriverLanguageSelectionScreen').catch(() => ({ default: () => <div>Driver Language Selection Loading...</div> })));
 const DriverEarningSetupScreen = lazy(() => import('./components/driver/DriverEarningSetupScreen').catch(() => ({ default: () => <div>Driver Earning Setup Loading...</div> })));
 const DriverVehicleSelectionScreen = lazy(() => import('./components/driver/DriverVehicleSelectionScreen').catch(() => ({ default: () => <div>Driver Vehicle Selection Loading...</div> })));
-const DriverLicenseUploadScreen = lazy(() => import('./components/driver/DriverLicenseUploadScreen').catch(() => ({ default: () => <div>Driver License Upload Loading...</div> })));
-const DriverProfilePhotoScreen = lazy(() => import('./components/driver/DriverProfilePhotoScreen').catch(() => ({ default: () => <div>Driver Profile Photo Loading...</div> })));
-const DriverPhotoConfirmationScreen = lazy(() => import('./components/driver/DriverPhotoConfirmationScreen').catch(() => ({ default: () => <div>Driver Photo Confirmation Loading...</div> })));
+// Removed redundant screens: DriverLicenseUploadScreen, DriverProfilePhotoScreen, DriverPhotoConfirmationScreen
 const DriverDocumentUploadScreen = lazy(() => import('./components/driver/DriverDocumentUploadScreen').catch(() => ({ default: () => <div>Driver Document Upload Loading...</div> })));
 const DriverDocumentVerificationScreen = lazy(() => import('./components/driver/DriverDocumentVerificationScreen').catch(() => ({ default: () => <div>Driver Document Verification Loading...</div> })));
 const DriverDocumentVerificationSuccessScreen = lazy(() => import('./components/driver/DriverDocumentVerificationSuccessScreen').catch(() => ({ default: () => <div>Driver Document Verification Success Loading...</div> })));
@@ -119,21 +117,47 @@ function AppContent() {
     }
   }, [auth.isAuthenticated, auth.user, isLoggedIn, userEmail, updateAppState]);
 
-  // Check for admin URL parameter - only on initial load
+  // Check for admin URL path or parameter - only on initial load
   React.useEffect(() => {
+    const pathname = window.location.pathname;
     const urlParams = new URLSearchParams(window.location.search);
     const hasAdminParam = urlParams.get('admin') === 'true';
+    const isAdminPath = pathname === '/admin' || pathname.endsWith('/admin');
     
-    if (hasAdminParam) {
+    if (isAdminPath || hasAdminParam) {
       console.log("👨‍💼 Admin mode detected via URL, navigating to admin dashboard");
       updateAppState({ currentScreen: 'admin-dashboard' });
       
-      // Remove admin parameter from URL to prevent re-triggering on refresh
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
-      console.log("🔧 Removed admin parameter from URL");
+      // Update URL to /admin if not already
+      if (!isAdminPath) {
+        window.history.replaceState({}, document.title, '/admin');
+        console.log("🔧 Updated URL to /admin");
+      }
     }
   }, []); // Empty deps - only run once on mount
+
+  // Listen for pathname changes (for direct navigation to /admin)
+  React.useEffect(() => {
+    const handlePathChange = () => {
+      const pathname = window.location.pathname;
+      if (pathname === '/admin' || pathname.endsWith('/admin')) {
+        if (currentScreen !== 'admin-dashboard') {
+          console.log("👨‍💼 Admin path detected, navigating to admin dashboard");
+          updateAppState({ currentScreen: 'admin-dashboard' });
+        }
+      }
+    };
+
+    // Check on mount
+    handlePathChange();
+
+    // Listen for popstate (back/forward navigation)
+    window.addEventListener('popstate', handlePathChange);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePathChange);
+    };
+  }, [currentScreen, updateAppState]);
 
   // Set up global callback for document verification success
   React.useEffect(() => {
@@ -252,6 +276,15 @@ function AppContent() {
         try {
           const accessToken = loginResponse.tokens.accessToken;
           
+          // Save token to localStorage for driver onboarding API
+          if (accessToken) {
+            localStorage.setItem('accessToken', accessToken);
+            // Also set it in the driver onboarding API service
+            const { driverOnboardingApi } = await import('./services/driver');
+            driverOnboardingApi.setAccessToken(accessToken);
+            console.log('✅ Driver access token saved to localStorage');
+          }
+          
           const response = await fetch('http://localhost:5001/api/driver/onboarding/status', {
             method: 'GET',
             headers: {
@@ -290,8 +323,9 @@ function AppContent() {
                 'LANGUAGE_SELECTION': 'driver-language-selection',
                 'EARNING_SETUP': 'driver-earning-setup',
                 'VEHICLE_SELECTION': 'driver-vehicle-selection',
-                'LICENSE_UPLOAD': 'driver-license-upload',
-                'PROFILE_PHOTO': 'driver-profile-photo',
+                'LICENSE_UPLOAD': 'driver-document-upload', // Skip license upload, go to document upload
+                'PROFILE_PHOTO': 'driver-document-upload', // Skip profile photo, go to document upload
+                'PHOTO_CONFIRMATION': 'driver-document-upload', // Skip photo confirmation, go to document upload
                 'DOCUMENT_UPLOAD': 'driver-document-upload',
                 'VERIFICATION_PENDING': 'driver-document-verification',
               };
@@ -482,6 +516,8 @@ function AppContent() {
 
       const data = await response.json();
       
+      console.log("📊 API Response:", data);
+      
       if (data.success && data.data) {
         const { onboarding_status, can_start_rides, is_verified } = data.data;
         
@@ -512,19 +548,30 @@ function AppContent() {
             'LANGUAGE_SELECTION': 'driver-language-selection',
             'EARNING_SETUP': 'driver-earning-setup',
             'VEHICLE_SELECTION': 'driver-vehicle-selection',
-            'LICENSE_UPLOAD': 'driver-license-upload',
-            'PROFILE_PHOTO': 'driver-profile-photo',
+            'LICENSE_UPLOAD': 'driver-document-upload', // Skip license upload, go to document upload
+            'PROFILE_PHOTO': 'driver-document-upload', // Skip profile photo, go to document upload
+            'PHOTO_CONFIRMATION': 'driver-document-upload', // Skip photo confirmation, go to document upload
             'DOCUMENT_UPLOAD': 'driver-document-upload',
+            'DOCUMENT_VERIFICATION': 'driver-document-upload',
             'VERIFICATION_PENDING': 'driver-document-verification',
           };
           
           const nextScreen = screenMap[onboarding_status] || 'driver-email-collection';
           
+          console.log('🔄 Navigating to screen:', nextScreen, 'for onboarding status:', onboarding_status);
+          console.log('🔄 Screen map:', screenMap);
+          console.log('🔄 Selected screen:', nextScreen);
+          
+          // Force navigation by updating state
           updateAppState({ 
             currentScreen: nextScreen as any,
             isDriverMode: true
           });
-          toast.info('Continue your driver registration');
+          
+          console.log('✅ State updated, should navigate to:', nextScreen);
+          
+          toast.dismiss('driver-status');
+          toast.success('Continue your driver registration');
         }
       } else if (response.status === 404) {
         // No driver profile - start onboarding
@@ -730,7 +777,7 @@ function AppContent() {
   const handleDriverVehicleSelectionContinue = useCallback((vehicleData: any) => {
     console.log("🚗 Driver vehicle selection continue:", vehicleData);
     updateAppState({ 
-      currentScreen: 'driver-license-upload'
+      currentScreen: 'driver-document-upload'
     });
   }, [updateAppState]);
 
@@ -768,47 +815,16 @@ function AppContent() {
     toast.info("Support contacted");
   }, []);
 
-  const handleDriverLicenseUploadContinue = useCallback((licenseData: any) => {
-    console.log("📄 Driver license upload continue:", licenseData);
+  const handleDriverRegistrationCancel = useCallback(() => {
+    console.log("❌ Driver registration cancelled - restarting from first step");
     updateAppState({ 
-      currentScreen: 'driver-profile-photo'
+      currentScreen: 'driver-email-collection',
+      isDriverMode: true
     });
+    toast.info('Registration cancelled. Starting from the beginning.');
   }, [updateAppState]);
 
-  const handleDriverLicenseUploadBack = useCallback(() => {
-    console.log("🔙 Driver license upload back");
-    updateAppState({ 
-      currentScreen: 'driver-vehicle-selection'
-    });
-  }, [updateAppState]);
-
-  const handleDriverProfilePhotoContinue = useCallback((photoData: any) => {
-    console.log("📸 Driver profile photo continue:", photoData);
-    updateAppState({ 
-      currentScreen: 'driver-photo-confirmation'
-    });
-  }, [updateAppState]);
-
-  const handleDriverProfilePhotoBack = useCallback(() => {
-    console.log("🔙 Driver profile photo back");
-    updateAppState({ 
-      currentScreen: 'driver-license-upload'
-    });
-  }, [updateAppState]);
-
-  const handleDriverPhotoConfirmationContinue = useCallback(() => {
-    console.log("✅ Driver photo confirmation continue");
-    updateAppState({ 
-      currentScreen: 'driver-document-upload'
-    });
-  }, [updateAppState]);
-
-  const handleDriverPhotoConfirmationBack = useCallback(() => {
-    console.log("🔙 Driver photo confirmation back");
-    updateAppState({ 
-      currentScreen: 'driver-profile-photo'
-    });
-  }, [updateAppState]);
+  // Removed license upload, profile photo, and photo confirmation handlers - these screens are redundant
 
   const handleDriverDocumentUploadNext = useCallback((documentData: any) => {
     console.log("📋 Driver document upload next:", documentData);
@@ -896,6 +912,7 @@ function AppContent() {
     return renderScreen(DriverEmailCollectionScreen, {
       onContinue: handleDriverEmailCollectionContinue,
       onBack: handleDriverEmailCollectionBack,
+      onCancel: handleDriverRegistrationCancel,
       onSupport: handleDriverSupport,
       userEmail
     });
@@ -906,6 +923,7 @@ function AppContent() {
     return renderScreen(DriverLanguageSelectionScreen, {
       onContinue: handleDriverLanguageSelectionContinue,
       onBack: handleDriverLanguageSelectionBack,
+      onCancel: handleDriverRegistrationCancel,
       onSupport: handleDriverSupport,
       userEmail
     });
@@ -916,6 +934,7 @@ function AppContent() {
     return renderScreen(DriverEarningSetupScreen, {
       onContinue: handleDriverEarningSetupContinue,
       onBack: handleDriverEarningSetupBack,
+      onCancel: handleDriverRegistrationCancel,
       onSupport: handleDriverSupport,
       userEmail
     });
@@ -926,6 +945,7 @@ function AppContent() {
     return renderScreen(DriverVehicleSelectionScreen, {
       onContinue: handleDriverVehicleSelectionContinue,
       onBack: handleDriverVehicleSelectionBack,
+      onCancel: handleDriverRegistrationCancel,
       onSupport: handleDriverSupport,
       userEmail
     });
@@ -944,40 +964,14 @@ function AppContent() {
     });
   }
 
-  if (currentScreen === 'driver-license-upload') {
-    console.log("📄 Rendering Driver License Upload Screen");
-    return renderScreen(DriverLicenseUploadScreen, {
-      onContinue: handleDriverLicenseUploadContinue,
-      onBack: handleDriverLicenseUploadBack,
-      onSupport: handleDriverSupport,
-      userEmail
-    });
-  }
-
-  if (currentScreen === 'driver-profile-photo') {
-    console.log("📸 Rendering Driver Profile Photo Screen");
-    return renderScreen(DriverProfilePhotoScreen, {
-      onContinue: handleDriverProfilePhotoContinue,
-      onBack: handleDriverProfilePhotoBack,
-      onSupport: handleDriverSupport,
-      userEmail
-    });
-  }
-
-  if (currentScreen === 'driver-photo-confirmation') {
-    console.log("✅ Rendering Driver Photo Confirmation Screen");
-    return renderScreen(DriverPhotoConfirmationScreen, {
-      onContinue: handleDriverPhotoConfirmationContinue,
-      onBack: handleDriverPhotoConfirmationBack,
-      userEmail
-    });
-  }
+  // Removed license upload, profile photo, and photo confirmation screens - redundant
 
   if (currentScreen === 'driver-document-upload') {
     console.log("📋 Rendering Driver Document Upload Screen");
     return renderScreen(DriverDocumentUploadScreen, {
       onNext: handleDriverDocumentUploadNext,
       onBack: handleDriverDocumentUploadBack,
+      onCancel: handleDriverRegistrationCancel,
       onSupport: handleDriverSupport,
       userEmail
     });
@@ -987,6 +981,7 @@ function AppContent() {
     console.log("🔍 Rendering Driver Document Verification Screen");
     return renderScreen(DriverDocumentVerificationScreen, {
       onBack: handleDriverDocumentVerificationBack,
+      onCancel: handleDriverRegistrationCancel,
       onSupport: handleDriverSupport,
       userEmail
     });
@@ -1123,7 +1118,10 @@ function AppContent() {
   if (currentScreen === 'admin-dashboard') {
     console.log("👨‍💼 Rendering Admin Dashboard Screen");
     return renderScreen(AdminDashboardScreen, {
-      onBack: () => updateAppState({ currentScreen: 'dashboard' })
+      onBack: () => {
+        updateAppState({ currentScreen: 'dashboard' });
+        window.history.pushState({}, '', '/');
+      }
     });
   }
 
@@ -1137,7 +1135,10 @@ function AppContent() {
         onOpenDriversApp: handleOpenDriversApp,
         onSwitchAccount: handleSwitchAccount,
         onLogout: handleLogout,
-        onOpenAdmin: () => updateAppState({ currentScreen: 'admin-dashboard' }),
+        onOpenAdmin: () => {
+          updateAppState({ currentScreen: 'admin-dashboard' });
+          window.history.pushState({}, '', '/admin');
+        },
         userEmail,
         isLoggedIn
       })}

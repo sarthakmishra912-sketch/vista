@@ -11,6 +11,8 @@ interface DocumentStatus {
 }
 
 interface DriverDocumentVerificationScreenProps {
+  onBack?: () => void;
+  onCancel?: () => void;
   onSupport: () => void;
   userEmail?: string | null;
 }
@@ -23,6 +25,8 @@ declare global {
 }
 
 export default function DriverDocumentVerificationScreen({
+  onBack,
+  onCancel,
   onSupport,
   userEmail
 }: DriverDocumentVerificationScreenProps) {
@@ -702,6 +706,31 @@ export default function DriverDocumentVerificationScreen({
               </span>
             </div>
           </div>
+
+          {/* Cancel Button */}
+          {onCancel && (
+            <div className="w-full pb-4">
+              <button
+                onClick={onCancel}
+                className="w-full border-2 rounded-2xl py-3 px-6 transition-opacity hover:opacity-80"
+                style={{ 
+                  backgroundColor: 'transparent',
+                  borderColor: '#a89c8a',
+                  color: '#353535'
+                }}
+              >
+                <div 
+                  className="text-base font-medium text-center"
+                  style={{ 
+                    fontFamily: 'Poppins, sans-serif',
+                    color: '#353535'
+                  }}
+                >
+                  Cancel Registration
+                </div>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

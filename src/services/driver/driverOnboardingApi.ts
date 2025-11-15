@@ -29,15 +29,14 @@ export interface DocumentUploadResponse {
 
 class DriverOnboardingApiService {
   private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-  private accessToken: string | null = null;
 
-  constructor() {
-    this.accessToken = localStorage.getItem('accessToken');
+  // Get access token from localStorage (always fresh)
+  private getAccessToken(): string | null {
+    return localStorage.getItem('accessToken');
   }
 
   // Set access token
   setAccessToken(token: string) {
-    this.accessToken = token;
     localStorage.setItem('accessToken', token);
   }
 
@@ -49,10 +48,15 @@ class DriverOnboardingApiService {
     console.log(`[${requestId}] 🚗 START ONBOARDING API CALL`);
 
     try {
+      const token = this.getAccessToken();
+      if (!token) {
+        throw new Error('No access token found. Please login again.');
+      }
+
       const response = await fetch(`${this.baseUrl}/driver/onboarding/start`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -82,7 +86,7 @@ class DriverOnboardingApiService {
       const response = await fetch(`${this.baseUrl}/driver/onboarding/language`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          'Authorization': `Bearer ${this.getAccessToken()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ language }),
@@ -113,7 +117,7 @@ class DriverOnboardingApiService {
       const response = await fetch(`${this.baseUrl}/driver/onboarding/vehicle`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          'Authorization': `Bearer ${this.getAccessToken()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ vehicleType, serviceTypes }),
@@ -141,6 +145,13 @@ class DriverOnboardingApiService {
     console.log(`[${requestId}] 📄 UPLOAD DOCUMENT API CALL`, { documentType, fileName: file.name });
 
     try {
+      const token = this.getAccessToken();
+      if (!token) {
+        throw new Error('No access token found. Please login again.');
+      }
+
+      console.log(`[${requestId}] 🔑 Using token:`, token.substring(0, 20) + '...');
+
       const formData = new FormData();
       formData.append('document', file);
       formData.append('documentType', documentType);
@@ -148,7 +159,7 @@ class DriverOnboardingApiService {
       const response = await fetch(`${this.baseUrl}/driver/onboarding/document/upload`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
@@ -178,7 +189,7 @@ class DriverOnboardingApiService {
       const response = await fetch(`${this.baseUrl}/driver/onboarding/documents/submit`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          'Authorization': `Bearer ${this.getAccessToken()}`,
           'Content-Type': 'application/json',
         },
       });
@@ -208,7 +219,7 @@ class DriverOnboardingApiService {
       const response = await fetch(`${this.baseUrl}/driver/onboarding/status`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          'Authorization': `Bearer ${this.getAccessToken()}`,
           'Content-Type': 'application/json',
         },
       });
@@ -238,7 +249,7 @@ class DriverOnboardingApiService {
       const response = await fetch(`${this.baseUrl}/driver/onboarding/verify`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          'Authorization': `Bearer ${this.getAccessToken()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ driverId, approved, notes }),

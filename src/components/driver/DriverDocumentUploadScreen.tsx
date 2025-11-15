@@ -11,12 +11,16 @@ interface DocumentUploadData {
 
 interface DriverDocumentUploadScreenProps {
   onNext: (uploadedDocuments: any) => void;
+  onBack?: () => void;
+  onCancel?: () => void;
   onSupport: () => void;
   userEmail?: string | null;
 }
 
 export default function DriverDocumentUploadScreen({
   onNext,
+  onBack,
+  onCancel,
   onSupport,
   userEmail
 }: DriverDocumentUploadScreenProps) {
@@ -725,7 +729,7 @@ export default function DriverDocumentUploadScreen({
           </div>
 
           {/* Next Button - Fixed at bottom */}
-          <div className="absolute box-border flex flex-col gap-3 items-start justify-start left-0 px-4 py-4 shadow-[0px_-2px_10px_0px_rgba(0,0,0,0.1)] bottom-0 w-full bg-white">
+          <div className="absolute box-border flex flex-col gap-2.5 items-start justify-start left-0 px-4 py-4 shadow-[0px_-2px_10px_0px_rgba(0,0,0,0.1)] bottom-0 w-full bg-white">
             <button
               onClick={handleNextClick}
               className="relative rounded-2xl w-full py-3 px-6 transition-opacity bg-[#282828] hover:opacity-90"
@@ -739,6 +743,29 @@ export default function DriverDocumentUploadScreen({
                 Next
               </div>
             </button>
+            
+            {/* Cancel Button */}
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                className="relative rounded-2xl w-full border-2 transition-opacity hover:opacity-80 py-3 px-6"
+                style={{ 
+                  backgroundColor: 'transparent',
+                  borderColor: '#a89c8a',
+                  color: '#353535'
+                }}
+              >
+                <div 
+                  className="text-base font-medium text-center"
+                  style={{ 
+                    fontFamily: 'Poppins, sans-serif',
+                    color: '#353535'
+                  }}
+                >
+                  Cancel
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>

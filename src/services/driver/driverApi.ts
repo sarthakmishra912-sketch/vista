@@ -232,9 +232,19 @@ class DriverApiService {
           color: 'White'
         },
         documents: {
-          license_verified: true,
-          insurance_verified: true,
-          vehicle_registration_verified: true
+          license_verified: false,
+          insurance_verified: false,
+          vehicle_registration_verified: false,
+          all_verified: false,
+          pending_count: 3
+        },
+        onboarding: {
+          status: 'verification_pending',
+          is_verified: false,
+          documents_submitted: true,
+          documents_verified: false,
+          can_start_rides: false,
+          verification_notes: 'Documents are pending admin verification'
         },
         status: 'active',
         rating: 4.8,

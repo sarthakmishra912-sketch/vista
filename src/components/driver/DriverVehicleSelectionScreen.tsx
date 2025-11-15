@@ -13,6 +13,7 @@ interface DriverVehicleSelectionScreenProps {
     expectedEarnings: { daily: number; hourly: number } 
   }) => void;
   onBack: () => void;
+  onCancel?: () => void;
   onSupport: () => void;
   userEmail?: string | null;
 }
@@ -68,7 +69,8 @@ const vehicleOptions: VehicleOption[] = [
 
 export default function DriverVehicleSelectionScreen({ 
   onContinue, 
-  onBack, 
+  onBack,
+  onCancel,
   onSupport,
   userEmail 
 }: DriverVehicleSelectionScreenProps) {
@@ -373,7 +375,7 @@ export default function DriverVehicleSelectionScreen({
           </div>
 
           {/* Continue Button - Fixed at bottom */}
-          <div className="absolute box-border flex flex-col items-start justify-start left-0 px-4 py-4 shadow-[0px_-2px_10px_0px_rgba(0,0,0,0.1)] bottom-0 w-full bg-white">
+          <div className="absolute box-border flex flex-col gap-2.5 items-start justify-start left-0 px-4 py-4 shadow-[0px_-2px_10px_0px_rgba(0,0,0,0.1)] bottom-0 w-full bg-white">
             <button
               onClick={handleContinue}
               disabled={!selectedVehicle}
@@ -389,6 +391,29 @@ export default function DriverVehicleSelectionScreen({
                 Continue
               </div>
             </button>
+            
+            {/* Cancel Button */}
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                className="relative rounded-2xl shrink-0 w-full border-2 transition-opacity hover:opacity-80 py-3 px-6"
+                style={{ 
+                  backgroundColor: 'transparent',
+                  borderColor: '#a89c8a',
+                  color: '#353535'
+                }}
+              >
+                <div 
+                  className="text-base font-medium text-center"
+                  style={{ 
+                    fontFamily: 'Poppins, sans-serif',
+                    color: '#353535'
+                  }}
+                >
+                  Cancel
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { adminApi, AdminDriver, DriverDocument } from '../services/adminApi';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -18,29 +18,62 @@ export default function AdminDashboardScreen({ onBack }: AdminDashboardScreenPro
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedDocument, setSelectedDocument] = useState<DriverDocument | null>(null);
 
-  // Load data on mount
-  useEffect(() => {
-    loadData();
-  }, [filterStatus]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('🔄 Loading admin data with filter:', filterStatus, 'search:', searchQuery);
+      
       const [driversData, statsData] = await Promise.all([
-        adminApi.getPendingDrivers({ search: searchQuery, limit: 100 }),
+        adminApi.getAllDrivers({ 
+          filter: filterStatus as 'all' | 'pending' | 'verified' | 'rejected',
+          search: searchQuery || undefined, 
+          limit: 100 
+        }),
         adminApi.getStatistics()
       ]);
       
+      console.log('📊 API Response:', {
+        filter: filterStatus,
+        driversCount: driversData.data.drivers.length,
+        drivers: driversData.data.drivers,
+        stats: statsData.data,
+        pagination: driversData.data.pagination
+      });
+      
       setDrivers(driversData.data.drivers);
       setStatistics(statsData.data);
-      console.log('📊 Loaded admin data:', { drivers: driversData.data.drivers.length, stats: statsData.data });
+      
+      if (driversData.data.drivers.length === 0) {
+        console.warn('⚠️ No drivers returned from API');
+      }
     } catch (error: any) {
       console.error('❌ Error loading admin data:', error);
-      toast.error('Failed to load data');
+      console.error('❌ Error details:', error.response?.data || error.message);
+      toast.error(error.response?.data?.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterStatus, searchQuery]);
+
+  // Load data on mount and when filter changes
+  useEffect(() => {
+    loadData();
+  }, [filterStatus, loadData]);
+
+  // Debounce search query to avoid too many API calls
+  useEffect(() => {
+    // Don't search if query is empty and we're on 'all' filter
+    if (!searchQuery && filterStatus === 'all') {
+      loadData();
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      loadData();
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, loadData]);
 
   const handleVerifyDocument = async (documentId: string, approved: boolean, rejectionReason?: string) => {
     try {
@@ -223,9 +256,60 @@ export default function AdminDashboardScreen({ onBack }: AdminDashboardScreenPro
               <CardHeader className="bg-gray-50 border-b">
                 <CardTitle className="text-gray-900 flex items-center gap-2">
                   <span className="text-xl">📋</span>
-                  Pending Verification
+                  {filterStatus === 'all' ? 'All Drivers' : 
+                   filterStatus === 'pending' ? 'Pending Verification' :
+                   filterStatus === 'verified' ? 'Verified Drivers' :
+                   'Rejected Drivers'}
                 </CardTitle>
                 <CardDescription className="text-gray-600">{drivers.length} drivers</CardDescription>
+                
+                {/* Filter Tabs */}
+                <div className="flex gap-2 mt-3 mb-3 flex-wrap">
+                  <button
+                    onClick={() => {
+                      console.log('🔄 Switching to All filter');
+                      setFilterStatus('all');
+                    }}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      filterStatus === 'all'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setFilterStatus('pending')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      filterStatus === 'pending'
+                        ? 'bg-yellow-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Pending
+                  </button>
+                  <button
+                    onClick={() => setFilterStatus('verified')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      filterStatus === 'verified'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Verified
+                  </button>
+                  <button
+                    onClick={() => setFilterStatus('rejected')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      filterStatus === 'rejected'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Rejected
+                  </button>
+                </div>
+                
                 <div className="relative mt-3">
                   <input
                     type="text"
@@ -240,6 +324,12 @@ export default function AdminDashboardScreen({ onBack }: AdminDashboardScreenPro
                 </div>
               </CardHeader>
               <CardContent className="p-0">
+                {loading ? (
+                  <div className="p-8 text-center">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                    <p className="mt-2 text-sm text-gray-500">Loading drivers...</p>
+                  </div>
+                ) : (
                 <div className="divide-y max-h-[600px] overflow-y-auto">
                   {drivers.map((driver) => (
                     <div
@@ -270,14 +360,25 @@ export default function AdminDashboardScreen({ onBack }: AdminDashboardScreenPro
                       )}
                     </div>
                   ))}
-                  {drivers.length === 0 && (
+                  {drivers.length === 0 && !loading && (
                     <div className="p-8 text-center text-gray-500">
                       <div className="text-4xl mb-2">✓</div>
-                      <p className="font-medium">All Clear!</p>
-                      <p className="text-sm">No pending drivers</p>
+                      <p className="font-medium">
+                        {filterStatus === 'all' ? 'No drivers found' : 
+                         filterStatus === 'pending' ? 'All Clear!' :
+                         filterStatus === 'verified' ? 'No verified drivers' :
+                         'No rejected drivers'}
+                      </p>
+                      <p className="text-sm">
+                        {filterStatus === 'all' ? 'No drivers have been registered yet' : 
+                         filterStatus === 'pending' ? 'No pending drivers' :
+                         filterStatus === 'verified' ? 'No verified drivers yet' :
+                         'No rejected drivers'}
+                      </p>
                     </div>
                   )}
                 </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -330,7 +431,7 @@ export default function AdminDashboardScreen({ onBack }: AdminDashboardScreenPro
                         <Button
                           onClick={() => handleVerifyAllDocuments(selectedDriver.driver_id, true)}
                           size="sm"
-                          className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 border-0"
+                          className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 border-0"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -340,7 +441,7 @@ export default function AdminDashboardScreen({ onBack }: AdminDashboardScreenPro
                         <Button
                           onClick={() => handleVerifyAllDocuments(selectedDriver.driver_id, false)}
                           size="sm"
-                          className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 border-0"
+                          className="bg-red-600 hover:bg-red-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 border-0"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -425,7 +526,7 @@ export default function AdminDashboardScreen({ onBack }: AdminDashboardScreenPro
                               <Button
                                 onClick={() => handleVerifyDocument(doc.id, true)}
                                 size="sm"
-                                className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 flex-1 border-0"
+                                className="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 flex-1 border-0"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
@@ -435,7 +536,7 @@ export default function AdminDashboardScreen({ onBack }: AdminDashboardScreenPro
                               <Button
                                 onClick={() => setSelectedDocument(doc)}
                                 size="sm"
-                                className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 flex-1 border-0"
+                                className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 flex-1 border-0"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />

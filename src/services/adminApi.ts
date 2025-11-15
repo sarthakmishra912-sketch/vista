@@ -1,6 +1,11 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Get API base URL - check if it already includes /api
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Remove trailing /api if present to avoid double /api/api
+const API_BASE_URL = rawApiUrl.endsWith('/api') 
+  ? rawApiUrl.replace(/\/api$/, '') 
+  : rawApiUrl;
 
 interface AdminDriver {
   driver_id: string;
@@ -111,12 +116,18 @@ class AdminApiService {
   private api: AxiosInstance;
 
   constructor() {
+    const baseURL = `${API_BASE_URL}/api/admin`;
     this.api = axios.create({
-      baseURL: `${API_BASE_URL}/api/admin`,
+      baseURL: baseURL,
       headers: {
         'Content-Type': 'application/json',
       },
     });
+    
+    console.log('🔧 AdminApi Configuration:');
+    console.log('  - rawApiUrl:', import.meta.env.VITE_API_URL || 'http://localhost:5001');
+    console.log('  - API_BASE_URL:', API_BASE_URL);
+    console.log('  - baseURL:', baseURL);
 
     // Add auth token to requests
     this.api.interceptors.request.use((config) => {
@@ -124,8 +135,33 @@ class AdminApiService {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      
+      // Log the full URL being requested
+      const fullUrl = config.baseURL + (config.url || '');
+      console.log('🌐 AdminApi Request:', {
+        method: config.method?.toUpperCase(),
+        url: config.url,
+        baseURL: config.baseURL,
+        fullURL: fullUrl,
+        params: config.params
+      });
+      
       return config;
     });
+  }
+
+  /**
+   * Get all drivers (with optional filters)
+   */
+  async getAllDrivers(params?: {
+    filter?: 'all' | 'pending' | 'verified' | 'rejected';
+    status?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PendingDriversResponse> {
+    const response = await this.api.get('/drivers', { params });
+    return response.data;
   }
 
   /**
